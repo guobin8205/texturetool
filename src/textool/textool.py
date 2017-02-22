@@ -18,10 +18,10 @@ from plistlib import readPlist
 from collections import OrderedDict
 
 usage = """
-%(prog)s ../btn.plist
-%(prog)s ../btn.plist -i ../btn.png
-%(prog)s ../data
-%(prog)s ../data -r
+%(prog)s build D:/project/tag/v2.0 -i D:/project/tag/v1.0 -l -if ui/item0 ui/item1
+%(prog)s unpack D:/project/tag/v2.0/ui/button.plist -o D:/prj/test
+%(prog)s convert D:/project/tag/v2.0/ui/button.plist -o D:/prj/test
+%(prog)s convert D:/project/tag/v2.0 -o D:/prj/test -r -if ui/item0 ui/item1
 """
 
 pvr_file_ext = (".pvr", ".pvr.gz", ".pvr.ccz")

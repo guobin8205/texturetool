@@ -19,7 +19,7 @@ textool build D:/project/tag/v2.0 -i D:/project/tag/v1.0 -l
 textool build D:/project/tag/v2.0 -i D:/project/tag/v1.0 -l -if ui/item0 ui/item1
 textool unpack D:/project/tag/v2.0/ui/button.plist -o D:/prj/test
 textool convert D:/project/tag/v2.0/ui/button.plist -o D:/prj/test
-textool convert D:/project/tag/v2.0 -o D:/prj/test -r -if ui/item0 ui/item1
+textool convert D:/project/tag/v2.0 -o D:/prj/test -r -if *
 
 positional arguments:
   command            command to use 
@@ -32,8 +32,9 @@ optional arguments:
   -h, --help            show this help message and exit
 
 For file:
-  -i input, --input		input directory to compair
-  -if image_folder, --image_folder		specified image folder to convert
+  -i input, --input		input directory to compair when use command build
+  -o output, --output		output directory when use command unpack or convert
+  -if image_folder, --image_folder	specified image folder to convert,use * to convert all png or pvr.ccz
 
 For directory:
   -r, --recursive
