@@ -15,12 +15,17 @@ the project is works on list based resource management auto generate set of pvr 
 ```
 $ textool -h
 usage:
-textool build project/tag/v2.0 -i project/tag/v1.0 -r
-textool build project/tag/v2.0 -i project/tag/v1.0 -r -if ui/item0 ui/item1
+textool build D:/project/tag/v2.0 -i D:/project/tag/v1.0 -l
+textool build D:/project/tag/v2.0 -i D:/project/tag/v1.0 -l -if ui/item0 ui/item1
+textool unpack D:/project/tag/v2.0/ui/button.plist -o D:/prj/test
+textool convert D:/project/tag/v2.0/ui/button.plist -o D:/prj/test
+textool convert D:/project/tag/v2.0 -o D:/prj/test -r -if ui/item0 ui/item1
 
 positional arguments:
   command            command to use 
 			[build] auto compair flist and convert to pvr.ccz 
+			[unpack] unpack plist file to pngs
+			[convert] convert png pvr.ccz to pvr.ccz
   path		     tag directory
 
 optional arguments:
@@ -37,4 +42,4 @@ For option
   -opt --image_option			RGBA8888 PVRTC4 default is RGBA8888
   -l, --log
 
-the code unpack texturepacker plist files base on https://github.com/justbilt/untp
+the command unpack texturepacker plist files base on https://github.com/justbilt/untp

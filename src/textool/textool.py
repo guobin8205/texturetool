@@ -32,13 +32,6 @@ def get_image_ext(image_file):
 		if image_file.endswith(ext):
 			return ext
 	return os.path.splitext(image_file)[1]
-
-# def get_file_size(filename):
-# 	try:
-#         size = 
-#         return formatSize(size)
-#     except Exception as err:
-#         print(err)
     
 def get_file_md5(filename):
     if not os.path.isfile(filename):
@@ -66,8 +59,25 @@ class TextureTool(object):
 		self.args = args
 
 	def run(self):
-		if self.args.command.lower() == 'build':
-			return self.build()
+		self.command = self.args.command.lower()
+		if self.command == 'build':
+			return self.command_build()
+		elif self.command == 'convert':
+			return self.command_unpack()
+		elif self.command == 'unpack':
+			return self.command_unpack()
+
+	def command_unpack(self):
+		if os.path.isdir(self.args.path):
+			self.unpacker_dir(self.args.path)
+		elif os.path.isfile(self.args.path):
+			self.unpacker(self.args.path)
+		else:
+			print("invalid path, not a directory > ", self.args.path)
+
+	def command_convert(self):
+
+		pass
 
 	def initbuildArgs(self):
 		if os.path.isdir(self.args.path):
@@ -96,7 +106,7 @@ class TextureTool(object):
 		self.image_file = {}
 		return True
 	
-	def build(self):
+	def command_build(self):
 		init = self.initbuildArgs()
 		if not init:
 			return
@@ -117,10 +127,7 @@ class TextureTool(object):
 					pass
 				pass
 			pass
-		#print(self.plist_filelist)
 		
-		#find all png file
-		#self.png_filelist = {}
 		if self.res_flist_data and self.res_flist_data['fileInfoList'] and self.args.image_folder:
 			for name in self.res_flist_data['fileInfoList']:
 				for folder in self.args.image_folder:
@@ -129,30 +136,20 @@ class TextureTool(object):
 						pass
 			pass
 
-		#print(self.png_filelist)
-		#res_in_flist = flistparse.read_flist(os.path.join(self.res_in_path, 'flist'))
-
 		for file in self.plist_filelist:
-			self.convert(file)
-		# for file in self.png_filelist:
-		# 	self.convert(file)
+			self.build_convert(file)
 
 		ret = flistparse.build_flist(self.res_build_path, self.res_flist_data)
-		if self.args.log:
-			print("build_flist >", ret)
+		print("build_flist >", ret)
+
 		return True
 
-	def convert(self, plist_file):
+	def build_convert(self, plist_file):
 		is_copy = self.copy_file(plist_file)
 		if is_copy:
 			return
 		
-		file_ext = get_image_ext(plist_file)
-		if file_ext == ".plist":
-			self.unpacker(plist_file, True)
-		else:
-			self.package_png_to_pvrccz(plist_file)
-		pass
+		self.unpacker(plist_file)
 
 	def copy_file(self, plist_file):
 		if not self.res_in_path or not self.res_in_build_path or not self.res_in_flist_data or not self.res_in_build_flist_data:
@@ -206,16 +203,33 @@ class TextureTool(object):
 
 		return True
 
-	def unpacker(self, plist_file, convert = False):
-		full_path = os.path.join(self.res_path, plist_file)
+	def unpacker(self, plist_file):
+		print('unpacker >', plist_file)
+		full_path = plist_file
+		if self.command == 'build':
+			full_path = os.path.join(self.res_path, plist_file)
 		if not os.path.isfile(full_path):
 			print("fail: can't find plist_file >" + full_path)
 			return False
 
-		if self.args.log:
-			print("unpacker > ", full_path)
-
 		file_path,file_name = os.path.split(full_path)
+		file_ext = get_image_ext(plist_file)
+		# create output dir
+		if self.command == 'build':
+			output_dir,_ = os.path.splitext(os.path.join(self.res_build_path, plist_file))
+		else:
+			if self.args.output:
+				if file_ext == '.plist':
+					output_dir = os.path.join(self.args.output, plist_file.replace(file_ext, ''))
+				else:
+					output_dir = os.path.join(self.args.output, plist_file.replace(file_ext, ''))
+			else:
+				output_dir,_ = os.path.splitext(os.path.join(plist_file))
+
+		if file_ext == ".png" or file_ext == ".pvr.ccz":
+			return self.package_png_to_pvrccz(plist_file)
+		pass
+
 		# file_md5 = get_file_md5(full_path)
 		
 		try:
@@ -232,7 +246,9 @@ class TextureTool(object):
 
 		# check image format
 		image_file = os.path.join(file_path , data.metadata.textureFileName)
-		self.image_file[plist_file] = plist_file.replace('.plist' , get_image_ext(data.metadata.textureFileName))
+		if self.command == 'build':
+			self.image_file[plist_file] = plist_file.replace('.plist' , get_image_ext(data.metadata.textureFileName))
+		
 		if not os.path.isfile(image_file):
 			print("fail: can't find image_file >", image_file)
 			return False
@@ -244,10 +260,6 @@ class TextureTool(object):
 				print("fail: can't convert pvr to png, are you sure installed TexturePacker command line tools ? More infomation:\nhttps://www.codeandweb.com/texturepacker/documentation#install-command-line")
 				return False
 
-		# create output dir
-		if self.res_build_path:
-			output_dir,_ = os.path.splitext(os.path.join(self.res_build_path, plist_file))
-			#print("output_dir >%s:%s" %(os.path.dirname(output_dir), output_dir))
 			
 		if not os.path.exists(os.path.dirname(output_dir)):
 			os.makedirs(os.path.dirname(output_dir))
@@ -272,7 +284,7 @@ class TextureTool(object):
 				os.makedirs(os.path.dirname(output_path))
 			dst_image.save(output_path)
 
-		if convert:
+		if self.command == 'build' or self.command == 'convert':
 			ret = self.package_png_to_pvrccz(plist_file, output_dir)
 			if ret:
 				pass
@@ -300,12 +312,22 @@ class TextureTool(object):
 			if self.args.log:
 				print("cmd > ", cmd)
 			if os.system(cmd) == 0:
-				self.update_file(plist_file)
+				if self.command == 'build':
+					self.update_file(plist_file)
 				return True
 			return False
-		elif os.path.isfile(os.path.join(self.res_path, plist_file)) and (plist_file.endswith('.png') or plist_file.endswith('.pvr.ccz')):
-			png_path = os.path.join(self.res_path, plist_file)
-			pvr_path = os.path.join(self.res_build_path, plist_file).replace('.png', '').replace('.pvr.ccz', '')
+		elif (plist_file.endswith('.png') or plist_file.endswith('.pvr.ccz')):
+			file_path,file_name = os.path.split(plist_file)
+			image_ext = get_image_ext(plist_file)
+			if self.command == 'build':
+				png_path = os.path.join(self.res_path, plist_file)
+				pvr_path = os.path.join(self.res_build_path, plist_file).replace(image_ext, '')
+			else:
+				png_path = plist_file
+				if self.args.output:
+					pvr_path = os.path.join(self.args.output, os.path.relpath(plist_file, self.args.path)).replace(image_ext, '')
+				else:
+					pvr_path,_ = os.path.splitext(os.path.join(plist_file))
 			cmd = "TexturePacker {png_path} --sheet {pvr_path}.pvr.ccz --data {pvr_path}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 0 --shape-padding 0 --disable-rotation --allow-free-size --no-trim".format(png_path = png_path, pvr_path = pvr_path, pvr_opt = opt)
 			if opt == "RGBA8888":
 				cmd = cmd + " --size-constraints NPOT"
@@ -315,7 +337,8 @@ class TextureTool(object):
 				print("cmd > ", cmd)
 			if os.system(cmd) == 0:
 				os.remove(pvr_path+'.plist')
-				self.update_file(plist_file)
+				if self.command == 'build':
+					self.update_file(plist_file)
 				return True
 			return False
 		else:
@@ -354,18 +377,26 @@ class TextureTool(object):
 				}
 			pass
 
-# Get the all files & directories in the specified directory (path).
-def unpacker_dir(path, args):
-	print("unpacker_dir >", path)
-	recursive = args.recursive
-	opt = args.image_option
-	for name in os.listdir(path):
-		full_name = os.path.join(path, name)
-		if full_name.endswith('.plist'):
-			unpacker(full_name, args)
-			pass
-		elif recursive and os.path.isdir(full_name):
-			unpacker_dir(full_name, args)
+	# Get the all files & directories in the specified directory (path).
+	def unpacker_dir(self, path):
+		if self.args.log:
+			print("unpacker_dir >", path)
+		recursive = self.args.recursive
+		for name in os.listdir(path):
+			full_name = os.path.join(path, name)
+			if full_name.endswith('.plist'):
+				self.unpacker(full_name)
+				pass
+			elif self.args.image_folder and (full_name.endswith('.png') or full_name.endswith('.pvr.ccz')):
+				for folder in self.args.image_folder:
+					if folder == "*" or os.path.relpath(path, self.args.path).replace("\\", "/").startswith(folder.replace("\\", "/")):
+						self.unpacker(full_name)
+						break
+				if self.args.image_folder[0] == "*":
+					self.unpacker(full_name)
+					pass
+			elif recursive and os.path.isdir(full_name):
+				self.unpacker_dir(full_name)
 
 			
 def main():
