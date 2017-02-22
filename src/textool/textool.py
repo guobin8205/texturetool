@@ -298,9 +298,7 @@ class TextureTool(object):
 		opt = self.args.image_option
 		if image_folder and os.path.isdir(image_folder):
 			file_path,file_name = os.path.split(plist_file)
-			cmd = "TexturePacker {pvr_folder} --sheet {pvr_folder}.pvr.ccz --data {pvr_folder}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 2 --shape-padding 2 --max-size 2048 --enable-rotation".format(pvr_folder = image_folder, pvr_opt = opt)
-			if file_name == "loadui.plist":
-				cmd = cmd + " --no-trim"
+			cmd = "TexturePacker {pvr_folder} --sheet {pvr_folder}.pvr.ccz --data {pvr_folder}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 2 --shape-padding 2 --max-size 2048 --enable-rotation --no-trim".format(pvr_folder = image_folder, pvr_opt = opt)
 			if opt == "RGBA8888":
 				cmd = cmd + " --size-constraints NPOT"
 			else:
