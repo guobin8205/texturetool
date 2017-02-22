@@ -92,6 +92,8 @@ class TextureTool(object):
 			if self.args.log:
 				print("res_in_path >", self.res_in_path)
 				print("res_in_build_path >", self.res_in_build_path)
+
+		self.image_file = {}
 		return True
 	
 	def build(self):
@@ -161,7 +163,6 @@ class TextureTool(object):
 			and self.res_in_flist_data['fileInfoList'].has_key(plist_file)	\
 			and self.res_in_flist_data['fileInfoList'][plist_file].has_key('code'):
 			compairCode = self.res_in_flist_data['fileInfoList'][plist_file]['code']
-			print("%s md5%s==%s" %(plist_file, code, compairCode))
 			if compairCode != code:
 				return False
 		else:
@@ -173,9 +174,8 @@ class TextureTool(object):
 		if file_ext == ".plist":
 			source_plist = os.path.join(self.res_in_build_path, plist_file)
 			source_pvr = os.path.join(self.res_in_build_path, plist_file.replace(".plist", ".pvr.ccz"))
-			dest_plist = os.path.join(self.res_in_path, plist_file)
-			dest_pvr = os.path.join(self.res_in_path, plist_file.replace(".plist", ".pvr.ccz"))
-			print('source_plist >', source_plist)
+			dest_plist = os.path.join(self.res_build_path, plist_file)
+			dest_pvr = os.path.join(self.res_build_path, plist_file.replace(".plist", ".pvr.ccz"))
 			if not os.path.isfile(source_plist):
 				print('source_plist not file >', source_plist)
 				return False
@@ -185,16 +185,25 @@ class TextureTool(object):
 			if self.args.log:
 				print("copy_file >", source_plist)
 				print("copy_file >", source_pvr)
+
+			if not os.path.exists(os.path.dirname(dest_pvr)):
+				os.makedirs(os.path.dirname(dest_pvr))
+
 			shutil.copyfile(source_plist, dest_plist)
 			shutil.copyfile(source_pvr, dest_pvr)
+			self.update_file(plist_file)
 		else:
 			source_pvr = os.path.join(self.res_in_build_path, plist_file.replace(".png", ".pvr.ccz"))
-			dest_pvr = os.path.join(self.res_in_path, plist_file.replace(".plist", ".pvr.ccz"))
+			dest_pvr = os.path.join(self.res_build_path, plist_file.replace(".png", ".pvr.ccz"))
 			if not os.path.isfile(source_pvr):
 				return False
 			if self.args.log:
 				print("copy_file >", source_pvr)
+			if not os.path.exists(os.path.dirname(dest_pvr)):
+				os.makedirs(os.path.dirname(dest_pvr))
 			shutil.copyfile(source_pvr, dest_pvr)
+			self.update_file(plist_file)
+
 		return True
 
 	def unpacker(self, plist_file, convert = False):
@@ -223,7 +232,7 @@ class TextureTool(object):
 
 		# check image format
 		image_file = os.path.join(file_path , data.metadata.textureFileName)
-		self.image_file = plist_file.replace('.plist' , get_image_ext(data.metadata.textureFileName))
+		self.image_file[plist_file] = plist_file.replace('.plist' , get_image_ext(data.metadata.textureFileName))
 		if not os.path.isfile(image_file):
 			print("fail: can't find image_file >", image_file)
 			return False
@@ -320,8 +329,8 @@ class TextureTool(object):
 				full_path = os.path.join(self.res_build_path, plist_file)
 				pvr_fullpath = full_path.replace('.plist', '.pvr.ccz')
 				pvr_path = plist_file.replace('.plist', '.pvr.ccz')
-				if self.image_file and self.res_flist_data['fileInfoList'].has_key(self.image_file):
-					del self.res_flist_data['fileInfoList'][self.image_file]
+				if self.image_file and self.image_file.has_key(plist_file) and self.res_flist_data['fileInfoList'].has_key(self.image_file[plist_file]):
+					del self.res_flist_data['fileInfoList'][self.image_file[plist_file]]
 				else:
 					if self.res_flist_data['fileInfoList'].has_key(plist_file.replace('.plist', '.pvr.ccz')):
 						del self.res_flist_data['fileInfoList'][plist_file.replace('.plist', '.pvr.ccz')]
