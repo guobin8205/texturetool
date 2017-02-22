@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = 'textool',
-    version = '0.0.6',
+    version = '1.0.2',
     keywords = ('textool', 'texturepacker'),
     description = 'A command line tool to convert TexturePacker file format.',
     license = 'MIT License',
