@@ -6,13 +6,13 @@ setup(
     name = 'textool',
     version = '0.0.6',
     keywords = ('textool', 'texturepacker'),
-    description = 'A command line tool to convert TexturePacker file format. code base on https://github.com/justbilt/untp for author justbilt.',
+    description = 'A command line tool to convert TexturePacker file format.',
     license = 'MIT License',
     install_requires = [
         'Pillow',
         'parse'
     ],
-    url = '',
+    url = 'https://github.com/guobin8205/texturetool',
     author = 'guobin',
     author_email = 'guobin2013@hotmail.com',
     packages = find_packages("src"),

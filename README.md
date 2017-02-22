@@ -37,3 +37,4 @@ For option
   -opt --image_option			RGBA8888 PVRTC4 default is RGBA8888
   -l, --log
 
+the code unpack texturepacker plist files base on https://github.com/justbilt/untp
