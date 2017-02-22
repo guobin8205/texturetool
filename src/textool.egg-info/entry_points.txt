@@ -1,0 +1,3 @@
+[console_scripts]
+textool = textool.textool:main
+
