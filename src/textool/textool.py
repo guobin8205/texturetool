@@ -219,13 +219,9 @@ class TextureTool(object):
 			output_dir,_ = os.path.splitext(os.path.join(self.res_build_path, plist_file))
 		else:
 			if self.args.output:
-				if file_ext == '.plist':
-					output_dir = os.path.join(self.args.output, plist_file.replace(file_ext, ''))
-				else:
-					output_dir = os.path.join(self.args.output, plist_file.replace(file_ext, ''))
+				output_dir = os.path.join(self.args.output, os.path.relpath(plist_file, self.args.path).replace(file_ext, ''))
 			else:
 				output_dir,_ = os.path.splitext(os.path.join(plist_file))
-
 		if file_ext == ".png" or file_ext == ".pvr.ccz":
 			return self.package_png_to_pvrccz(plist_file)
 		pass
