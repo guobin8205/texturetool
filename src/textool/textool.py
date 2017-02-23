@@ -57,6 +57,7 @@ def convert_pvr_to_png(image_file, image_ext):
 class TextureTool(object):
 	def __init__(self, args):
 		self.args = args
+		self.image_file = {}
 
 	def run(self):
 		self.command = self.args.command.lower()
@@ -103,7 +104,6 @@ class TextureTool(object):
 				print("res_in_path >", self.res_in_path)
 				print("res_in_build_path >", self.res_in_build_path)
 
-		self.image_file = {}
 		return True
 	
 	def command_build(self):
@@ -219,9 +219,14 @@ class TextureTool(object):
 			output_dir,_ = os.path.splitext(os.path.join(self.res_build_path, plist_file))
 		else:
 			if self.args.output:
-				output_dir = os.path.join(self.args.output, os.path.relpath(plist_file, self.args.path).replace(file_ext, ''))
+				output_dir = self.args.output
+				relpath = os.path.relpath(plist_file, self.args.path)
+				if relpath and relpath != '.':
+					output_dir = os.path.join(self.args.output, os.path.relpath(plist_file, self.args.path).replace(file_ext, ''))
+					pass
 			else:
 				output_dir,_ = os.path.splitext(os.path.join(plist_file))
+		
 		if file_ext == ".png" or file_ext == ".pvr.ccz":
 			return self.package_png_to_pvrccz(plist_file)
 		pass
@@ -242,7 +247,7 @@ class TextureTool(object):
 
 		# check image format
 		image_file = os.path.join(file_path , data.metadata.textureFileName)
-		if self.command == 'build':
+		if self.command == 'build' or self.command == 'convert':
 			self.image_file[plist_file] = plist_file.replace('.plist' , get_image_ext(data.metadata.textureFileName))
 		
 		if not os.path.isfile(image_file):
@@ -298,13 +303,28 @@ class TextureTool(object):
 		opt = self.args.image_option
 		if image_folder and os.path.isdir(image_folder):
 			file_path,file_name = os.path.split(plist_file)
-			cmd = "TexturePacker {pvr_folder} --sheet {pvr_folder}.pvr.ccz --data {pvr_folder}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 2 --shape-padding 2 --max-size 2048 --enable-rotation --no-trim".format(pvr_folder = image_folder, pvr_opt = opt)
+			cmd = "TexturePacker {pvr_folder} --sheet {pvr_folder}.pvr.ccz --data {pvr_folder}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 2 --shape-padding 2 --max-size 2048 --enable-rotation".format(pvr_folder = image_folder, pvr_opt = opt)
+			if self.image_file and self.image_file.has_key(plist_file) \
+			and get_image_ext(self.image_file[plist_file]) in pvr_file_ext:
+				pass
+			else:
+				cmd = cmd + " --premultiply-alpha"
+			if self.args.no_trim_image:
+				for image in self.args.no_trim_image:
+					if image == "*" or image == file_name:
+						cmd = cmd + " --no-trim"
+						break
+				pass
+			if self.args.other_option:
+				cmd = cmd + " " + self.args.other_option.replace('+', ' ').replace('_', '-')
 			if opt == "RGBA8888":
 				cmd = cmd + " --size-constraints NPOT"
 			else:
 				cmd = cmd + " --size-constraints POT"
 			if self.args.log:
 				print("cmd > ", cmd)
+			else:
+				cmd = cmd + " --queit"
 			if os.system(cmd) == 0:
 				if self.command == 'build':
 					self.update_file(plist_file)
@@ -323,6 +343,7 @@ class TextureTool(object):
 				else:
 					pvr_path,_ = os.path.splitext(os.path.join(plist_file))
 			cmd = "TexturePacker {png_path} --sheet {pvr_path}.pvr.ccz --data {pvr_path}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 0 --shape-padding 0 --disable-rotation --allow-free-size --no-trim".format(png_path = png_path, pvr_path = pvr_path, pvr_opt = opt)
+			cmd = cmd + " --premultiply-alpha"
 			if opt == "RGBA8888":
 				cmd = cmd + " --size-constraints NPOT"
 			else:
@@ -408,6 +429,8 @@ def main():
 
 	group_option = parser.add_argument_group('For option')
 	group_option.add_argument("-opt", "--image_option", type=str, metavar="image_opt", default='RGBA8888')
+	group_option.add_argument("-nti", "--no_trim_image", nargs="*", type=str, metavar="no_trim_image", help="no-trim image list")
+	group_option.add_argument("-oo", "--other_option", type=str, metavar="other_option", default='')
 	group_option.add_argument("-l", "--log", action="count", default=0)
 
 	args = parser.parse_args()
