@@ -25,7 +25,7 @@ usage = """
 """
 
 pvr_file_ext = (".pvr", ".pvr.gz", ".pvr.ccz")
-
+ignore_folder = (".svn")
 
 def get_image_ext(image_file):
 	for ext in pvr_file_ext:
@@ -67,6 +67,17 @@ class TextureTool(object):
 			return self.command_unpack()
 		elif self.command == 'unpack':
 			return self.command_unpack()
+		elif self.command == 'pack':
+			return self.command_pack()
+		else:
+			print("unkown command,  > ", self.command)
+
+	def command_pack(self):
+		if os.path.isdir(self.args.path):
+			self.packer_dir(self.args.path)
+		else:
+			print("invalid path, not a directory > ", self.args.path)
+		pass
 
 	def command_unpack(self):
 		if os.path.isdir(self.args.path):
@@ -293,9 +304,70 @@ class TextureTool(object):
 				os.remove(image_file)
 			shutil.rmtree(output_dir)
 			pass
+			
 		if self.args.log:
 			print("success:", full_path)
 		return True
+
+	def pack(self, image_folder):
+		if self.args.log:
+			print("pack > ", image_folder)
+		if image_folder and os.path.isdir(image_folder):
+			file_path, file_name = os.path.split(image_folder)
+			if self.args.output:
+				output_dir = os.path.join(self.args.output, file_name)
+			else:
+				output_dir = image_folder
+			file_ext = ".png"
+			if self.args.texture_format.lower() == "pvr2ccz":
+				file_ext = ".pvr.ccz"
+			elif self.args.texture_format.lower() == "pvr2":
+				file_ext = ".pvr"
+			else:
+				pass
+			if self.args.multipack:
+				output_dir = output_dir + "{n1}"
+			elif self.args.multipack_list:
+				for image in self.args.multipack_list:
+					if image == "*" or image == file_name:
+						output_dir = output_dir + "{n1}"
+						break
+				pass
+
+			cmd = "TexturePacker {image_folder} --sheet {output_dir}{file_ext} --data {output_dir}.plist --format cocos2d --texture-format {texture_format} --opt {opt} --border-padding 2 --shape-padding 2 --max-size 2048 --enable-rotation".format( \
+				image_folder = image_folder, output_dir = output_dir, file_ext = file_ext, texture_format = self.args.texture_format.lower(), opt = self.args.image_option)
+			if self.args.no_trim_image:
+				for image in self.args.no_trim_image:
+					if image == "*" or image == file_name:
+						cmd = cmd + " --no-trim"
+						break
+				pass
+			if self.args.image_option == "RGBA8888":
+				cmd = cmd + " --size-constraints NPOT"
+			else:
+				cmd = cmd + " --size-constraints POT"
+			if self.args.multipack:
+				cmd = cmd + " --multipack"
+				pass
+			if self.args.multipack_list:
+				for image in self.args.multipack_list:
+					if image == "*" or image == file_name:
+						cmd = cmd + " --multipack"
+						break
+				pass
+			if self.args.log:
+				print("cmd > ", cmd)
+			else:
+				cmd = cmd + " --quiet"
+			if os.system(cmd) == 0:
+				if self.args.log:
+					print("success:", image_folder)
+				return True
+		else:
+			print("fail: can't find image_folder or plist_file")
+			return False
+
+		return False
 
 	def package_png_to_pvrccz(self, plist_file, image_folder=None):
 		if self.args.log:
@@ -324,7 +396,7 @@ class TextureTool(object):
 			if self.args.log:
 				print("cmd > ", cmd)
 			else:
-				cmd = cmd + " --queit"
+				cmd = cmd + " --quiet"
 			if os.system(cmd) == 0:
 				if self.command == 'build':
 					self.update_file(plist_file)
@@ -343,13 +415,18 @@ class TextureTool(object):
 				else:
 					pvr_path,_ = os.path.splitext(os.path.join(plist_file))
 			cmd = "TexturePacker {png_path} --sheet {pvr_path}.pvr.ccz --data {pvr_path}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 0 --shape-padding 0 --disable-rotation --allow-free-size --no-trim".format(png_path = png_path, pvr_path = pvr_path, pvr_opt = opt)
-			cmd = cmd + " --premultiply-alpha"
+			if plist_file.endswith('.pvr.ccz'):
+				pass
+			else:
+				cmd = cmd + " --premultiply-alpha"
 			if opt == "RGBA8888":
 				cmd = cmd + " --size-constraints NPOT"
 			else:
 				cmd = cmd + " --size-constraints POT"
 			if self.args.log:
 				print("cmd > ", cmd)
+			else:
+				cmd = cmd + " --quiet"
 			if os.system(cmd) == 0:
 				os.remove(pvr_path+'.plist')
 				if self.command == 'build':
@@ -392,6 +469,31 @@ class TextureTool(object):
 				}
 			pass
 
+	def packer_dir(self, path):
+		if self.args.log:
+			print("packer_dir >", path)
+		recursive = self.args.recursive
+		if not os.path.isdir(path):
+			print("packer_dir is not dir >", path)
+			return
+
+		if recursive:
+			for name in os.listdir(path):
+				full_name = os.path.join(path, name)
+				if not os.path.isdir(full_name):
+					continue
+				if name in ignore_folder:
+					continue
+				if self.args.ignore_list and name in self.args.ignore_list:
+					continue
+				if self.args.image_folder:
+					if name in self.args.image_folder:
+						self.pack(full_name)
+				else:
+					self.pack(full_name)
+		else:
+			self.pack(path)
+
 	# Get the all files & directories in the specified directory (path).
 	def unpacker_dir(self, path):
 		if self.args.log:
@@ -428,9 +530,13 @@ def main():
 	group_dir.add_argument("-r", "--recursive", action="store_true", default=False)
 
 	group_option = parser.add_argument_group('For option')
+	group_option.add_argument("-tf", "--texture_format", type=str, metavar="texture_format", default='png')
 	group_option.add_argument("-opt", "--image_option", type=str, metavar="image_opt", default='RGBA8888')
+	group_option.add_argument("-mpk", "--multipack", action="store_true", default=False)
+	group_option.add_argument("-mpl", "--multipack_list", nargs="*", type=str, metavar="multipack_list", help="multipack image list")
 	group_option.add_argument("-nti", "--no_trim_image", nargs="*", type=str, metavar="no_trim_image", help="no-trim image list")
 	group_option.add_argument("-oo", "--other_option", type=str, metavar="other_option", default='')
+	group_option.add_argument("-igl", "--ignore_list", nargs="*", type=str, metavar="ignore_list", help="ignore list when pack")
 	group_option.add_argument("-l", "--log", action="count", default=0)
 
 	args = parser.parse_args()
