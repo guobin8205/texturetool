@@ -10,7 +10,8 @@ setup(
     license = 'MIT License',
     install_requires = [
         'Pillow',
-        'parse'
+        'parse',
+        'PythonMagick'
     ],
     url = 'https://github.com/guobin8205/texturetool',
     author = 'guobin',

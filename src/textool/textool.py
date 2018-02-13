@@ -11,6 +11,9 @@ import flistparse
 import hashlib
 import json
 import shutil
+import zlib
+import tempfile
+import struct
 
 from PIL import Image
 from parse import parse
@@ -64,7 +67,7 @@ class TextureTool(object):
 		if self.command == 'build':
 			return self.command_build()
 		elif self.command == 'convert':
-			return self.command_unpack()
+			return self.command_convert()
 		elif self.command == 'unpack':
 			return self.command_unpack()
 		elif self.command == 'pack':
@@ -87,9 +90,141 @@ class TextureTool(object):
 		else:
 			print("invalid path, not a directory > ", self.args.path)
 
-	def command_convert(self):
-
+	def initArgs(self):
+		if os.path.isdir(self.args.path):
+			self.res_path = os.path.join(self.args.path, 'res')
+			self.res_build_path = os.path.join(self.args.path, 'res_ios')
+			if not os.path.isdir(self.res_path):
+				print("invalid path, can't find res path > ", self.args.path)
+				return False
+		else:
+			print("invalid path, not a directory > ", self.args.path)
+			return False
 		pass
+
+	def getConvertFiles(self):
+		tempfiles = []
+		print("path > ", self.args.path)
+		if os.path.isdir(self.args.path):
+			for root, dirs, files in os.walk(self.args.path):
+				for name in files:
+					fileName, fileSuffix = os.path.splitext(name)
+					if fileSuffix == '.png' or fileSuffix == '.jpg':
+						fullPath = self.args.path + root[len(self.args.path):]
+						fullName = fullPath + '/' + name
+						if not os.path.exists(fullName):
+							continue
+
+						tempfiles.append(fullName)
+				else:
+					continue
+				break
+		elif os.path.exists(self.args.path):
+			tempfiles.append(self.args.path)
+			pass
+
+		print ("total converting %d files" % len(tempfiles))
+		# print ("files=\n" + '\r\n'.join(tempfiles))
+		return tempfiles
+
+	def command_convert(self):
+		files = self.getConvertFiles()
+		if self.args.image_option != "ETC1":
+			return
+		for file in files:
+			if self.args.image_option == "ETC1":
+				self.convert_to_etc1(file, self.args.output)
+				pass
+		pass
+		
+	def pvr_compress_ccz(self, tempfile, destfile):
+		pvr = open(tempfile, 'rb').read()
+		pvrccz = open(destfile, "wb")
+		pvrccz.write(struct.pack(">4sHHII","CCZ!",0,1,0,len(pvr)))
+		pvrccz.write(zlib.compress(pvr))
+		pvrccz.close()
+
+	def convert_to_etc1(self, _image, _output_path, _suffix="", _zlib=True):
+		dirname, basename = os.path.split(os.path.relpath(_image, self.args.path))
+		pre,ext = os.path.splitext(basename)
+		output_dir = os.path.join(_output_path, dirname)
+		if not os.path.isdir(output_dir):
+			os.makedirs(output_dir)
+		exists_alpha = ext != ".jpg"
+
+		tmp_rgb_file = tempfile.mktemp(ext)
+		tmp_a_file = tempfile.mktemp(ext)
+
+		# image = Image.open(_image).convert('RGBA')
+		# alpha = image.split()[-1]
+		# bg = Image.new("RGBA", image.size, (0,0,0,255))
+		# bg.paste(alpha, mask=alpha)
+		# bg.convert('L').convert('P', palette=Image.ADAPTIVE, colors=8).save(
+                                                                # mask_path,
+                                                                # optimize=True)
+		# im = Image.open(_image, 'r')
+		# rgbData = im.tobytes("raw", "RGB")
+		# alphaData = im.tobytes("raw", "A")
+		# im.convert('RGB').save(tmp_rgb_file)
+		# Image.frombytes("L", im.size, alphaData).save(tmp_a_file)
+
+		if exists_alpha:
+			im = Image.open(_image, 'r')
+			rgbData = im.tobytes("raw", "RGB")
+			alphaData = im.tobytes("raw", "A")
+			im.convert('RGB').save(tmp_rgb_file)
+			Image.frombytes("L", im.size, alphaData).save(tmp_a_file)
+			pass
+			# command = "convert %s -alpha Off %s" %(_image, tmp_rgb_file)
+			# os.system(command)
+
+			# command = "convert %s -channel A -alpha extract %s" %(_image, tmp_a_file)
+			# os.system(command)
+		else:
+			shutil.copy(_image, tmp_rgb_file)
+
+		tmp_rgb_pvr_file = tempfile.mktemp(".pvr")
+		tmp_a_pvr_file = tempfile.mktemp(".pvr")
+		dst_rgb_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr")
+		dst_a_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr" + "@alpha")
+		if _zlib:
+			dst_rgb_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr.ccz")
+			dst_a_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr.ccz@alpha")
+		
+		command = "%s -f ETC1 -i %s -o %s -q etcfast" %("PVRTexToolCLI", tmp_rgb_file, tmp_rgb_pvr_file)
+		print(command)
+		os.system(command)
+		os.remove(tmp_rgb_file)
+
+		if exists_alpha:
+			command = "%s -f ETC1 -i %s -o %s -q etcfast" %("PVRTexToolCLI", tmp_a_file, tmp_a_pvr_file)
+			print(command)
+			os.system(command)
+			os.remove(tmp_a_file)
+
+		# pvr_rgb = open(tmp_rgb_pvr_file, 'rb').read()
+		# print("pvr_rgb size > ", len(pvr_rgb))
+
+		# if exists_alpha:
+		# 	pvr_a = open(tmp_a_pvr_file, 'rb').read()
+		# 	print("pvr_a size > ", len(pvr_a))
+
+		if _zlib:
+			self.pvr_compress_ccz(tmp_rgb_pvr_file, dst_rgb_pvr_file)
+			os.remove(tmp_rgb_pvr_file)
+
+			if exists_alpha:
+				self.pvr_compress_ccz(tmp_a_pvr_file, dst_a_pvr_file)
+				os.remove(tmp_a_pvr_file)
+
+		else:
+			os.rename(tmp_rgb_pvr_file, dst_rgb_pvr_file)
+			os.rename(tmp_a_pvr_file, dst_a_pvr_file)
+
+		if exists_alpha:
+			return {"color": dst_rgb_pvr_file, "alpha": dst_a_pvr_file}
+
+		return dst_rgb_pvr_file
 
 	def initbuildArgs(self):
 		if os.path.isdir(self.args.path):
@@ -116,7 +251,7 @@ class TextureTool(object):
 				print("res_in_build_path >", self.res_in_build_path)
 
 		return True
-	
+
 	def command_build(self):
 		init = self.initbuildArgs()
 		if not init:
