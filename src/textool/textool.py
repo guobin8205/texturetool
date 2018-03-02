@@ -14,7 +14,12 @@ import shutil
 import zlib
 import tempfile
 import struct
+import plistlib
+import audiotranscode
 
+from utils import *
+from convert import *
+from build import BuildTool
 from PIL import Image
 from parse import parse
 from plistlib import readPlist
@@ -29,33 +34,6 @@ usage = """
 
 pvr_file_ext = (".pvr", ".pvr.gz", ".pvr.ccz")
 ignore_folder = (".svn")
-
-def get_image_ext(image_file):
-	for ext in pvr_file_ext:
-		if image_file.endswith(ext):
-			return ext
-	return os.path.splitext(image_file)[1]
-    
-def get_file_md5(filename):
-    if not os.path.isfile(filename):
-        return
-    myhash = hashlib.md5()
-    f = file(filename,'rb')
-    while True:
-        b = f.read()
-        if not b :
-            break
-        myhash.update(b)
-    f.close()
-    return myhash.hexdigest()
-
-def convert_pvr_to_png(image_file, image_ext):
-	print("convert_pvr_to_png > ", image_file)
-	pvr_path = image_file.replace(image_ext, "")
-	if os.system("TexturePacker {pvr_pathname} --sheet {pvr_path}.png --data {pvr_path}_temp.plist --texture-format png --border-padding 0 --shape-padding 0 --disable-rotation --allow-free-size --no-trim".format(pvr_pathname = image_file, pvr_path = pvr_path)) == 0:
-		os.remove(pvr_path + "_temp.plist")
-		return True
-	return False
 
 class TextureTool(object):
 	def __init__(self, args):
@@ -72,8 +50,58 @@ class TextureTool(object):
 			return self.command_unpack()
 		elif self.command == 'pack':
 			return self.command_pack()
+		elif self.command == 'test':
+			return self.command_test2()
 		else:
 			print("unkown command,  > ", self.command)
+
+	def command_test2(self):
+		files = self.getAudioFiles()
+		at = audiotranscode.AudioTranscode(debug=True)
+		print(at.available_encoder_formats())
+		print(at.available_decoder_formats())
+		for file in files:
+			print ("file=" + file)
+			fileName, fileSuffix = os.path.splitext(file)
+			at.transcode(file,'D:\project/test.ogg',bitrate=128)
+			return
+		# print ("files=\n" + '\r\n'.join(files))\
+		#ffmpeg -i E:\quickv3\sanguosha\res\audio\skill\SKILL_32_1_2.mp3 -f wav - |oggenc2 -q 0 -Q - -o D:/project/SKILL_32_1_2.ogg
+		pass
+
+	def command_test(self):
+		# build = BuildTool(self.args.path)
+		# build.execute()
+		files = self.getConvertFiles()
+		if self.args.image_option != "ETC1":
+			return
+		resourse = {}
+		resourse["metadata"] = { 'version':1 }
+		resourse["filenames"] = {}
+		for file in files:
+			if self.args.image_option == "ETC1":
+				dirname, basename = os.path.split(os.path.relpath(file, self.args.path))
+				output_dir = os.path.join(self.args.output, dirname)
+				filepath, filename = os.path.split(file)
+				pre,ext = os.path.splitext(filename)
+				dst_rgb_pvr_file = os.path.join(output_dir, pre + ".pvr.ccz")
+				src_key = os.path.join(dirname, filename).replace('\\','/')
+				src_val = os.path.join(dirname, pre + ".pvr.ccz").replace('\\','/')
+				# print(src_key, src_val)
+				resourse["filenames"][src_key] = src_val
+				# print(file, dst_rgb_pvr_file)
+				# convert_to_etc1(file, output_dir)
+				pass
+			pass
+		# print(resourse)
+		plist_string = plistlib.writePlistToString(resourse)
+		# print(plist_string)
+		plist_file = os.path.join(self.args.output, "res.plist")
+		print(plist_file)
+		file = open(plist_file, 'wb')
+		file.write(plist_string)
+		file.close()
+		pass
 
 	def command_pack(self):
 		if os.path.isdir(self.args.path):
@@ -101,6 +129,36 @@ class TextureTool(object):
 			print("invalid path, not a directory > ", self.args.path)
 			return False
 		pass
+
+	def getAudioFiles(self):
+		return self.getConvertFiles2((".mp3"))
+
+	def getConvertFiles2(self, extentions=None):
+		tempfiles = []
+		# print("path > ", self.args.path)
+		if os.path.isdir(self.args.path):
+			for root, dirs, files in os.walk(self.args.path):
+				for name in files:
+					fileName, fileSuffix = os.path.splitext(name)
+					if extentions == None or (fileSuffix in extentions):
+						fullPath = self.args.path + root[len(self.args.path):]
+						fullName = fullPath + '/' + name
+						if not os.path.exists(fullName):
+							continue
+
+						tempfiles.append(fullName)
+				else:
+					continue
+				break
+		elif os.path.exists(self.args.path):
+			fileName, fileSuffix = os.path.splitext(self.args.path)
+			if extentions == None or (fileSuffix in extentions):
+				tempfiles.append(self.args.path)
+			pass
+
+		print ("total converting %d files" % len(tempfiles))
+		# print ("files=\n" + '\r\n'.join(tempfiles))
+		return tempfiles
 
 	def getConvertFiles(self):
 		tempfiles = []
@@ -133,7 +191,9 @@ class TextureTool(object):
 			return
 		for file in files:
 			if self.args.image_option == "ETC1":
-				self.convert_to_etc1(file, self.args.output)
+				dirname, basename = os.path.split(os.path.relpath(file, self.args.path))
+				output_dir = os.path.join(self.args.output, dirname)
+				convert_to_etc1(file, output_dir)
 				pass
 		pass
 		
@@ -145,6 +205,7 @@ class TextureTool(object):
 		pvrccz.close()
 
 	def convert_to_etc1(self, _image, _output_path, _suffix="", _zlib=True):
+		print("convert_to_etc1 image path > ", _image)
 		dirname, basename = os.path.split(os.path.relpath(_image, self.args.path))
 		pre,ext = os.path.splitext(basename)
 		output_dir = os.path.join(_output_path, dirname)
@@ -155,21 +216,9 @@ class TextureTool(object):
 		tmp_rgb_file = tempfile.mktemp(ext)
 		tmp_a_file = tempfile.mktemp(ext)
 
-		# image = Image.open(_image).convert('RGBA')
-		# alpha = image.split()[-1]
-		# bg = Image.new("RGBA", image.size, (0,0,0,255))
-		# bg.paste(alpha, mask=alpha)
-		# bg.convert('L').convert('P', palette=Image.ADAPTIVE, colors=8).save(
-                                                                # mask_path,
-                                                                # optimize=True)
-		# im = Image.open(_image, 'r')
-		# rgbData = im.tobytes("raw", "RGB")
-		# alphaData = im.tobytes("raw", "A")
-		# im.convert('RGB').save(tmp_rgb_file)
-		# Image.frombytes("L", im.size, alphaData).save(tmp_a_file)
-
 		if exists_alpha:
 			im = Image.open(_image, 'r')
+			im = im.convert('RGBA')
 			rgbData = im.tobytes("raw", "RGB")
 			alphaData = im.tobytes("raw", "A")
 			im.convert('RGB').save(tmp_rgb_file)
@@ -185,31 +234,22 @@ class TextureTool(object):
 
 		tmp_rgb_pvr_file = tempfile.mktemp(".pvr")
 		tmp_a_pvr_file = tempfile.mktemp(".pvr")
-		dst_rgb_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr")
-		dst_a_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr" + "@alpha")
-		if _zlib:
-			dst_rgb_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr.ccz")
-			dst_a_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr.ccz@alpha")
 		
 		command = "%s -f ETC1 -i %s -o %s -q etcfast" %("PVRTexToolCLI", tmp_rgb_file, tmp_rgb_pvr_file)
-		print(command)
+		# print(command)
 		os.system(command)
 		os.remove(tmp_rgb_file)
 
 		if exists_alpha:
 			command = "%s -f ETC1 -i %s -o %s -q etcfast" %("PVRTexToolCLI", tmp_a_file, tmp_a_pvr_file)
-			print(command)
+			# print(command)
 			os.system(command)
 			os.remove(tmp_a_file)
-
-		# pvr_rgb = open(tmp_rgb_pvr_file, 'rb').read()
-		# print("pvr_rgb size > ", len(pvr_rgb))
-
-		# if exists_alpha:
-		# 	pvr_a = open(tmp_a_pvr_file, 'rb').read()
-		# 	print("pvr_a size > ", len(pvr_a))
-
+		
 		if _zlib:
+			dst_rgb_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr.ccz")
+			dst_a_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr.ccz@alpha")
+
 			self.pvr_compress_ccz(tmp_rgb_pvr_file, dst_rgb_pvr_file)
 			os.remove(tmp_rgb_pvr_file)
 
@@ -218,6 +258,8 @@ class TextureTool(object):
 				os.remove(tmp_a_pvr_file)
 
 		else:
+			dst_rgb_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr")
+			dst_a_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr" + "@alpha")
 			os.rename(tmp_rgb_pvr_file, dst_rgb_pvr_file)
 			os.rename(tmp_a_pvr_file, dst_a_pvr_file)
 
@@ -469,7 +511,7 @@ class TextureTool(object):
 						break
 				pass
 
-			cmd = "TexturePacker {image_folder} --sheet {output_dir}{file_ext} --data {output_dir}.plist --format cocos2d --texture-format {texture_format} --opt {opt} --border-padding 2 --shape-padding 2 --max-size 2048 --enable-rotation".format( \
+			cmd = "TexturePacker {image_folder} --sheet {output_dir}{file_ext} --data {output_dir}.plist --format cocos2d --texture-format {texture_format} --opt {opt} --border-padding 0 --shape-padding 0 --max-size 2048 --enable-rotation".format( \
 				image_folder = image_folder, output_dir = output_dir, file_ext = file_ext, texture_format = self.args.texture_format.lower(), opt = self.args.image_option)
 			if self.args.no_trim_image:
 				for image in self.args.no_trim_image:
