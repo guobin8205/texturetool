@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding=utf-8
+# Python 2.7.3
 import os
 import sys
 import hashlib
@@ -6,6 +9,21 @@ import tempfile
 import struct
 import time,datetime
 from config import *
+from multiprocessing import Lock
+
+def g_init(param):
+    global args
+    args = param
+
+def get_args():
+    return args
+
+loglock = Lock()
+def log(*args):
+    if loglock.acquire():
+        print(args)
+        loglock.release()
+    pass
 
 def timestamp_to_time(timestamp):
     time_struct = time.localtime(timestamp)
@@ -35,6 +53,62 @@ def get_file_md5(filename):
         myhash.update(b)
     f.close()
     return myhash.hexdigest()
+
+def get_all_dirfiles(path, extentions=None, ignores=None):
+    tempfiles = []
+    if os.path.isdir(path):
+        for root, dirs, files in os.walk(path):
+            print(root)
+            print(dirs)
+            print(files)
+            for name in files:
+                fileName, fileSuffix = os.path.splitext(name)
+                if (extentions == None or (fileSuffix in extentions))  \
+                and (ignores == None or not (fileSuffix in ignores)):
+                    fullPath = path + root[len(path):]
+                    fullName = fullPath + '/' + name
+                    if not os.path.exists(fullName):
+                        continue
+
+                    tempfiles.append(fullName)
+            else:
+                continue
+            break
+    elif os.path.exists(path):
+        fileName, fileSuffix = os.path.splitext(path)
+        if extentions == None or (fileSuffix in extentions):
+            tempfiles.append(path)
+        pass
+
+    return tempfiles
+
+def get_all_files(path, extentions=None, ignores=None):
+    tempfiles = []
+    if os.path.isdir(path):
+        for root, dirs, files in os.walk(path):
+            print(root)
+            print(dirs)
+            print(files)
+            for name in files:
+                fileName, fileSuffix = os.path.splitext(name)
+                if (extentions == None or (fileSuffix in extentions))  \
+                and (ignores == None or not (fileSuffix in ignores)):
+                    fullPath = path + root[len(path):]
+                    fullName = fullPath + '/' + name
+                    if not os.path.exists(fullName):
+                        continue
+
+                    tempfiles.append(fullName)
+            else:
+                continue
+            break
+    elif os.path.exists(path):
+        fileName, fileSuffix = os.path.splitext(path)
+        if extentions == None or (fileSuffix in extentions):
+            tempfiles.append(path)
+        pass
+
+    return tempfiles
 
 def convert_pvr_to_png(image_file, image_ext):
 	print("convert_pvr_to_png > ", image_file)

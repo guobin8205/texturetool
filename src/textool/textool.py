@@ -1,6 +1,7 @@
-#!/usr/bin/env python  
-# coding=utf-8  
-# Python 2.7.3  
+#!/usr/bin/env python
+# coding=utf-8
+# Python 2.7.3
+
 from __future__ import print_function
 
 import os
@@ -20,10 +21,14 @@ import audiotranscode
 from utils import *
 from convert import *
 from build import BuildTool
+from textureconvert import TextureConvert
 from PIL import Image
 from parse import parse
 from plistlib import readPlist
 from collections import OrderedDict
+from multiprocessing import Pool, Lock
+from multiprocessing.dummy import Pool as ThreadPool
+from distutils.spawn import find_executable
 
 usage = """
 %(prog)s build D:/project/tag/v2.0 -i D:/project/tag/v1.0 -l -if ui/item0 ui/item1
@@ -32,16 +37,12 @@ usage = """
 %(prog)s convert D:/project/tag/v2.0 -o D:/prj/test -r -if ui/item0 ui/item1
 """
 
-pvr_file_ext = (".pvr", ".pvr.gz", ".pvr.ccz")
-ignore_folder = (".svn")
-
 class TextureTool(object):
-	def __init__(self, args):
-		self.args = args
+	def __init__(self):
 		self.image_file = {}
 
 	def run(self):
-		self.command = self.args.command.lower()
+		self.command = args.command.lower()
 		if self.command == 'build':
 			return self.command_build()
 		elif self.command == 'convert':
@@ -51,52 +52,60 @@ class TextureTool(object):
 		elif self.command == 'pack':
 			return self.command_pack()
 		elif self.command == 'test':
-			return self.command_test2()
+			return self.command_test3()
 		else:
-			print("unkown command,  > ", self.command)
+			print("unkown command,> ", self.command)
+
+	def command_test3(self):
+		build = BuildTool()
+		build.make_flist()
+		# for file in files:
+		# 	print ("file=" + file)
+		# 	return
+		# print ("files=\n" + '\r\n'.join(files))\
+		#ffmpeg -i E:\quickv3\sanguosha\res\audio\skill\SKILL_32_1_2.mp3 -f wav - |oggenc2 -q 0 -Q - -o D:/project/SKILL_32_1_2.ogg
+		pass
+
+	def testfile3(self, file):
+		print(file)
+		pass
 
 	def command_test2(self):
+		print(args.path)
 		files = self.getAudioFiles()
 		at = audiotranscode.AudioTranscode(debug=True)
 		print(at.available_encoder_formats())
 		print(at.available_decoder_formats())
 		for file in files:
-			print ("file=" + file)
-			fileName, fileSuffix = os.path.splitext(file)
-			at.transcode(file,'D:\project/test.ogg',bitrate=128)
+			at.transcode(file,'D:/project/test.ogg',bitrate=128)
 			return
 		# print ("files=\n" + '\r\n'.join(files))\
 		#ffmpeg -i E:\quickv3\sanguosha\res\audio\skill\SKILL_32_1_2.mp3 -f wav - |oggenc2 -q 0 -Q - -o D:/project/SKILL_32_1_2.ogg
 		pass
 
 	def command_test(self):
-		# build = BuildTool(self.args.path)
+		# build = BuildTool(args.path)
 		# build.execute()
 		files = self.getConvertFiles()
-		if self.args.image_option != "ETC1":
+		if args.image_option != "ETC1":
 			return
 		resourse = {}
 		resourse["metadata"] = { 'version':1 }
 		resourse["filenames"] = {}
 		for file in files:
-			if self.args.image_option == "ETC1":
-				dirname, basename = os.path.split(os.path.relpath(file, self.args.path))
-				output_dir = os.path.join(self.args.output, dirname)
-				filepath, filename = os.path.split(file)
-				pre,ext = os.path.splitext(filename)
-				dst_rgb_pvr_file = os.path.join(output_dir, pre + ".pvr.ccz")
+			if args.image_option == "ETC1":
+				dirname, _ = os.path.split(os.path.relpath(file, args.path))
+				_, filename = os.path.split(file)
+				pre,_ = os.path.splitext(filename)
 				src_key = os.path.join(dirname, filename).replace('\\','/')
 				src_val = os.path.join(dirname, pre + ".pvr.ccz").replace('\\','/')
-				# print(src_key, src_val)
 				resourse["filenames"][src_key] = src_val
-				# print(file, dst_rgb_pvr_file)
-				# convert_to_etc1(file, output_dir)
 				pass
 			pass
 		# print(resourse)
 		plist_string = plistlib.writePlistToString(resourse)
 		# print(plist_string)
-		plist_file = os.path.join(self.args.output, "res.plist")
+		plist_file = os.path.join(args.output, "res.plist")
 		print(plist_file)
 		file = open(plist_file, 'wb')
 		file.write(plist_string)
@@ -104,71 +113,47 @@ class TextureTool(object):
 		pass
 
 	def command_pack(self):
-		if os.path.isdir(self.args.path):
-			self.packer_dir(self.args.path)
+		if os.path.isdir(args.path):
+			self.packer_dir(args.path)
 		else:
-			print("invalid path, not a directory > ", self.args.path)
+			print("invalid path, not a directory > ", args.path)
 		pass
 
 	def command_unpack(self):
-		if os.path.isdir(self.args.path):
-			self.unpacker_dir(self.args.path)
-		elif os.path.isfile(self.args.path):
-			self.unpacker(self.args.path)
+		if os.path.isdir(args.path):
+			self.unpacker_dir(args.path)
+		elif os.path.isfile(args.path):
+			self.unpacker(args.path)
 		else:
-			print("invalid path, not a directory > ", self.args.path)
+			print("invalid path, not a directory > ", args.path)
 
 	def initArgs(self):
-		if os.path.isdir(self.args.path):
-			self.res_path = os.path.join(self.args.path, 'res')
-			self.res_build_path = os.path.join(self.args.path, 'res_ios')
+		if os.path.isdir(args.path):
+			self.res_path = os.path.join(args.path, 'res')
+			self.res_build_path = os.path.join(args.path, 'res_ios')
 			if not os.path.isdir(self.res_path):
-				print("invalid path, can't find res path > ", self.args.path)
+				print("invalid path, can't find res path > ", args.path)
 				return False
 		else:
-			print("invalid path, not a directory > ", self.args.path)
+			print("invalid path, not a directory > ", args.path)
 			return False
 		pass
 
 	def getAudioFiles(self):
-		return self.getConvertFiles2((".mp3"))
+		return get_all_files(args.path, (".mp3"))
 
-	def getConvertFiles2(self, extentions=None):
-		tempfiles = []
-		# print("path > ", self.args.path)
-		if os.path.isdir(self.args.path):
-			for root, dirs, files in os.walk(self.args.path):
-				for name in files:
-					fileName, fileSuffix = os.path.splitext(name)
-					if extentions == None or (fileSuffix in extentions):
-						fullPath = self.args.path + root[len(self.args.path):]
-						fullName = fullPath + '/' + name
-						if not os.path.exists(fullName):
-							continue
-
-						tempfiles.append(fullName)
-				else:
-					continue
-				break
-		elif os.path.exists(self.args.path):
-			fileName, fileSuffix = os.path.splitext(self.args.path)
-			if extentions == None or (fileSuffix in extentions):
-				tempfiles.append(self.args.path)
-			pass
-
-		print ("total converting %d files" % len(tempfiles))
-		# print ("files=\n" + '\r\n'.join(tempfiles))
-		return tempfiles
+	def getTextureFiles(self):
+		return get_all_files(args.path, (".png", ".jpg"))
 
 	def getConvertFiles(self):
 		tempfiles = []
-		print("path > ", self.args.path)
-		if os.path.isdir(self.args.path):
-			for root, dirs, files in os.walk(self.args.path):
+		print("path > ", args.path)
+		if os.path.isdir(args.path):
+			for root, _, files in os.walk(args.path):
 				for name in files:
-					fileName, fileSuffix = os.path.splitext(name)
+					_, fileSuffix = os.path.splitext(name)
 					if fileSuffix == '.png' or fileSuffix == '.jpg':
-						fullPath = self.args.path + root[len(self.args.path):]
+						fullPath = args.path + root[len(args.path):]
 						fullName = fullPath + '/' + name
 						if not os.path.exists(fullName):
 							continue
@@ -177,8 +162,8 @@ class TextureTool(object):
 				else:
 					continue
 				break
-		elif os.path.exists(self.args.path):
-			tempfiles.append(self.args.path)
+		elif os.path.exists(args.path):
+			tempfiles.append(args.path)
 			pass
 
 		print ("total converting %d files" % len(tempfiles))
@@ -186,109 +171,57 @@ class TextureTool(object):
 		return tempfiles
 
 	def command_convert(self):
-		files = self.getConvertFiles()
-		if self.args.image_option != "ETC1":
+		if args.image_option != "ETC1":
 			return
-		for file in files:
-			if self.args.image_option == "ETC1":
-				dirname, basename = os.path.split(os.path.relpath(file, self.args.path))
-				output_dir = os.path.join(self.args.output, dirname)
-				convert_to_etc1(file, output_dir)
+
+		start_time = time.time()
+		files = self.getTextureFiles()
+		if args.image_option == "ETC1":
+			args.tempdir = tempfile.mkdtemp()
+			return_data = []
+			if args.poolSize > 1:
+				pool = ThreadPool(args.poolSize)
+				return_data = pool.map(self.convert_to_etc1, files)
+				pool.close()
+				pool.join()
+			else:
+				for file in files:
+					data = self.convert_to_etc1(file)
+					return_data.append(data)
+			
+			if os.path.isdir(args.tempdir):
+				shutil.rmtree(args.tempdir)
 				pass
+			print('total elapse time %d seconds'% (time.time()-start_time))
 		pass
-		
-	def pvr_compress_ccz(self, tempfile, destfile):
-		pvr = open(tempfile, 'rb').read()
-		pvrccz = open(destfile, "wb")
-		pvrccz.write(struct.pack(">4sHHII","CCZ!",0,1,0,len(pvr)))
-		pvrccz.write(zlib.compress(pvr))
-		pvrccz.close()
 
-	def convert_to_etc1(self, _image, _output_path, _suffix="", _zlib=True):
-		print("convert_to_etc1 image path > ", _image)
-		dirname, basename = os.path.split(os.path.relpath(_image, self.args.path))
-		pre,ext = os.path.splitext(basename)
-		output_dir = os.path.join(_output_path, dirname)
-		if not os.path.isdir(output_dir):
-			os.makedirs(output_dir)
-		exists_alpha = ext != ".jpg"
-
-		tmp_rgb_file = tempfile.mktemp(ext)
-		tmp_a_file = tempfile.mktemp(ext)
-
-		if exists_alpha:
-			im = Image.open(_image, 'r')
-			im = im.convert('RGBA')
-			rgbData = im.tobytes("raw", "RGB")
-			alphaData = im.tobytes("raw", "A")
-			im.convert('RGB').save(tmp_rgb_file)
-			Image.frombytes("L", im.size, alphaData).save(tmp_a_file)
-			pass
-			# command = "convert %s -alpha Off %s" %(_image, tmp_rgb_file)
-			# os.system(command)
-
-			# command = "convert %s -channel A -alpha extract %s" %(_image, tmp_a_file)
-			# os.system(command)
-		else:
-			shutil.copy(_image, tmp_rgb_file)
-
-		tmp_rgb_pvr_file = tempfile.mktemp(".pvr")
-		tmp_a_pvr_file = tempfile.mktemp(".pvr")
-		
-		command = "%s -f ETC1 -i %s -o %s -q etcfast" %("PVRTexToolCLI", tmp_rgb_file, tmp_rgb_pvr_file)
-		# print(command)
-		os.system(command)
-		os.remove(tmp_rgb_file)
-
-		if exists_alpha:
-			command = "%s -f ETC1 -i %s -o %s -q etcfast" %("PVRTexToolCLI", tmp_a_file, tmp_a_pvr_file)
-			# print(command)
-			os.system(command)
-			os.remove(tmp_a_file)
-		
-		if _zlib:
-			dst_rgb_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr.ccz")
-			dst_a_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr.ccz@alpha")
-
-			self.pvr_compress_ccz(tmp_rgb_pvr_file, dst_rgb_pvr_file)
-			os.remove(tmp_rgb_pvr_file)
-
-			if exists_alpha:
-				self.pvr_compress_ccz(tmp_a_pvr_file, dst_a_pvr_file)
-				os.remove(tmp_a_pvr_file)
-
-		else:
-			dst_rgb_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr")
-			dst_a_pvr_file = os.path.join(output_dir, pre + _suffix + ".pvr" + "@alpha")
-			os.rename(tmp_rgb_pvr_file, dst_rgb_pvr_file)
-			os.rename(tmp_a_pvr_file, dst_a_pvr_file)
-
-		if exists_alpha:
-			return {"color": dst_rgb_pvr_file, "alpha": dst_a_pvr_file}
-
-		return dst_rgb_pvr_file
-
+	def convert_to_etc1(self, _file):
+		dirname, _ = os.path.split(os.path.relpath(_file, args.path))
+		output_dir = os.path.join(args.output, dirname)
+		tempdir = os.path.join(args.tempdir, dirname)
+		return convert_to_etc1(_file, output_dir, tempdir)
+	
 	def initbuildArgs(self):
-		if os.path.isdir(self.args.path):
-			self.res_path = os.path.join(self.args.path, 'res')
-			self.res_build_path = os.path.join(self.args.path, 'res_ios')
+		if os.path.isdir(args.path):
+			self.res_path = os.path.join(args.path, 'res')
+			self.res_build_path = os.path.join(args.path, 'res_ios')
 			if not os.path.isdir(self.res_path):
-				print("invalid path, can't find res path > ", self.args.path)
+				print("invalid path, can't find res path > ", args.path)
 				return False
 		else:
-			print("invalid path, not a directory > ", self.args.path)
+			print("invalid path, not a directory > ", args.path)
 			return False
 
-		if self.args.log:
+		if args.log:
 			print("res_path >", self.res_path)
 			print("res_build_path >", self.res_build_path)
 
 		self.res_in_path = None
 		self.res_in_build_path = None
-		if self.args.input and os.path.isdir(self.args.input) and os.path.isdir(os.path.join(self.args.input, 'res_ios')):
-			self.res_in_path = os.path.join(self.args.input, 'res')
-			self.res_in_build_path = os.path.join(self.args.input, 'res_ios')
-			if self.args.log:
+		if args.input and os.path.isdir(args.input) and os.path.isdir(os.path.join(args.input, 'res_ios')):
+			self.res_in_path = os.path.join(args.input, 'res')
+			self.res_in_build_path = os.path.join(args.input, 'res_ios')
+			if args.log:
 				print("res_in_path >", self.res_in_path)
 				print("res_in_build_path >", self.res_in_build_path)
 
@@ -316,9 +249,9 @@ class TextureTool(object):
 				pass
 			pass
 		
-		if self.res_flist_data and self.res_flist_data['fileInfoList'] and self.args.image_folder:
+		if self.res_flist_data and self.res_flist_data['fileInfoList'] and args.image_folder:
 			for name in self.res_flist_data['fileInfoList']:
-				for folder in self.args.image_folder:
+				for folder in args.image_folder:
 					if name.startswith(folder):
 						self.plist_filelist[name] = self.res_flist_data['fileInfoList'][name]['code']
 						pass
@@ -367,7 +300,7 @@ class TextureTool(object):
 			if not os.path.isfile(source_pvr):
 				print('source_pvr not file >', source_pvr)
 				return False
-			if self.args.log:
+			if args.log:
 				print("copy_file >", source_plist)
 				print("copy_file >", source_pvr)
 
@@ -382,7 +315,7 @@ class TextureTool(object):
 			dest_pvr = os.path.join(self.res_build_path, plist_file.replace(".png", ".pvr.ccz"))
 			if not os.path.isfile(source_pvr):
 				return False
-			if self.args.log:
+			if args.log:
 				print("copy_file >", source_pvr)
 			if not os.path.exists(os.path.dirname(dest_pvr)):
 				os.makedirs(os.path.dirname(dest_pvr))
@@ -400,17 +333,17 @@ class TextureTool(object):
 			print("fail: can't find plist_file >" + full_path)
 			return False
 
-		file_path,file_name = os.path.split(full_path)
+		file_path,_ = os.path.split(full_path)
 		file_ext = get_image_ext(plist_file)
 		# create output dir
 		if self.command == 'build':
 			output_dir,_ = os.path.splitext(os.path.join(self.res_build_path, plist_file))
 		else:
-			if self.args.output:
-				output_dir = self.args.output
-				relpath = os.path.relpath(plist_file, self.args.path)
+			if args.output:
+				output_dir = args.output
+				relpath = os.path.relpath(plist_file, args.path)
 				if relpath and relpath != '.':
-					output_dir = os.path.join(self.args.output, os.path.relpath(plist_file, self.args.path).replace(file_ext, ''))
+					output_dir = os.path.join(args.output, os.path.relpath(plist_file, args.path).replace(file_ext, ''))
 					pass
 			else:
 				output_dir,_ = os.path.splitext(os.path.join(plist_file))
@@ -423,7 +356,7 @@ class TextureTool(object):
 		
 		try:
 			data = readPlist(full_path)
-		except Exception, e:
+		except Exception, _:
 			print("fail: read plist file failed >", full_path)
 			return False
 
@@ -455,7 +388,7 @@ class TextureTool(object):
 		
 		try:
 			src_image = Image.open(image_file)
-		except Exception, e:
+		except Exception, _:
 			print("fail: can't open image %s " %image_file)
 			return False
 
@@ -482,62 +415,62 @@ class TextureTool(object):
 			shutil.rmtree(output_dir)
 			pass
 			
-		if self.args.log:
+		if args.log:
 			print("success:", full_path)
 		return True
 
 	def pack(self, image_folder):
-		if self.args.log:
+		if args.log:
 			print("pack > ", image_folder)
 		if image_folder and os.path.isdir(image_folder):
-			file_path, file_name = os.path.split(image_folder)
-			if self.args.output:
-				output_dir = os.path.join(self.args.output, file_name)
+			_, file_name = os.path.split(image_folder)
+			if args.output:
+				output_dir = os.path.join(args.output, file_name)
 			else:
 				output_dir = image_folder
 			file_ext = ".png"
-			if self.args.texture_format.lower() == "pvr2ccz":
+			if args.texture_format.lower() == "pvr2ccz":
 				file_ext = ".pvr.ccz"
-			elif self.args.texture_format.lower() == "pvr2":
+			elif args.texture_format.lower() == "pvr2":
 				file_ext = ".pvr"
 			else:
 				pass
-			if self.args.multipack:
+			if args.multipack:
 				output_dir = output_dir + "{n1}"
-			elif self.args.multipack_list:
-				for image in self.args.multipack_list:
+			elif args.multipack_list:
+				for image in args.multipack_list:
 					if image == "*" or image == file_name:
 						output_dir = output_dir + "{n1}"
 						break
 				pass
 
 			cmd = "TexturePacker {image_folder} --sheet {output_dir}{file_ext} --data {output_dir}.plist --format cocos2d --texture-format {texture_format} --opt {opt} --border-padding 0 --shape-padding 0 --max-size 2048 --enable-rotation".format( \
-				image_folder = image_folder, output_dir = output_dir, file_ext = file_ext, texture_format = self.args.texture_format.lower(), opt = self.args.image_option)
-			if self.args.no_trim_image:
-				for image in self.args.no_trim_image:
+				image_folder = image_folder, output_dir = output_dir, file_ext = file_ext, texture_format = args.texture_format.lower(), opt = args.image_option)
+			if args.no_trim_image:
+				for image in args.no_trim_image:
 					if image == "*" or image == file_name:
 						cmd = cmd + " --no-trim"
 						break
 				pass
-			if self.args.image_option == "RGBA8888":
+			if args.image_option == "RGBA8888":
 				cmd = cmd + " --size-constraints NPOT"
 			else:
 				cmd = cmd + " --size-constraints POT"
-			if self.args.multipack:
+			if args.multipack:
 				cmd = cmd + " --multipack"
 				pass
-			if self.args.multipack_list:
-				for image in self.args.multipack_list:
+			if args.multipack_list:
+				for image in args.multipack_list:
 					if image == "*" or image == file_name:
 						cmd = cmd + " --multipack"
 						break
 				pass
-			if self.args.log:
+			if args.log:
 				print("cmd > ", cmd)
 			else:
 				cmd = cmd + " --quiet"
 			if os.system(cmd) == 0:
-				if self.args.log:
+				if args.log:
 					print("success:", image_folder)
 				return True
 		else:
@@ -547,30 +480,30 @@ class TextureTool(object):
 		return False
 
 	def package_png_to_pvrccz(self, plist_file, image_folder=None):
-		if self.args.log:
+		if args.log:
 			print("package_png_to_pvrccz > ", plist_file)
-		opt = self.args.image_option
+		opt = args.image_option
 		if image_folder and os.path.isdir(image_folder):
-			file_path,file_name = os.path.split(plist_file)
+			_,file_name = os.path.split(plist_file)
 			cmd = "TexturePacker {pvr_folder} --sheet {pvr_folder}.pvr.ccz --data {pvr_folder}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 2 --shape-padding 2 --max-size 2048 --enable-rotation".format(pvr_folder = image_folder, pvr_opt = opt)
 			if self.image_file and self.image_file.has_key(plist_file) \
 			and get_image_ext(self.image_file[plist_file]) in pvr_file_ext:
 				pass
 			else:
 				cmd = cmd + " --premultiply-alpha"
-			if self.args.no_trim_image:
-				for image in self.args.no_trim_image:
+			if args.no_trim_image:
+				for image in args.no_trim_image:
 					if image == "*" or image == file_name:
 						cmd = cmd + " --no-trim"
 						break
 				pass
-			if self.args.other_option:
-				cmd = cmd + " " + self.args.other_option.replace('+', ' ').replace('_', '-')
+			if args.other_option:
+				cmd = cmd + " " + args.other_option.replace('+', ' ').replace('_', '-')
 			if opt == "RGBA8888":
 				cmd = cmd + " --size-constraints NPOT"
 			else:
 				cmd = cmd + " --size-constraints POT"
-			if self.args.log:
+			if args.log:
 				print("cmd > ", cmd)
 			else:
 				cmd = cmd + " --quiet"
@@ -580,15 +513,15 @@ class TextureTool(object):
 				return True
 			return False
 		elif (plist_file.endswith('.png') or plist_file.endswith('.pvr.ccz')):
-			file_path,file_name = os.path.split(plist_file)
+			_,file_name = os.path.split(plist_file)
 			image_ext = get_image_ext(plist_file)
 			if self.command == 'build':
 				png_path = os.path.join(self.res_path, plist_file)
 				pvr_path = os.path.join(self.res_build_path, plist_file).replace(image_ext, '')
 			else:
 				png_path = plist_file
-				if self.args.output:
-					pvr_path = os.path.join(self.args.output, os.path.relpath(plist_file, self.args.path)).replace(image_ext, '')
+				if args.output:
+					pvr_path = os.path.join(args.output, os.path.relpath(plist_file, args.path)).replace(image_ext, '')
 				else:
 					pvr_path,_ = os.path.splitext(os.path.join(plist_file))
 			cmd = "TexturePacker {png_path} --sheet {pvr_path}.pvr.ccz --data {pvr_path}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 0 --shape-padding 0 --disable-rotation --allow-free-size --no-trim".format(png_path = png_path, pvr_path = pvr_path, pvr_opt = opt)
@@ -600,7 +533,7 @@ class TextureTool(object):
 				cmd = cmd + " --size-constraints NPOT"
 			else:
 				cmd = cmd + " --size-constraints POT"
-			if self.args.log:
+			if args.log:
 				print("cmd > ", cmd)
 			else:
 				cmd = cmd + " --quiet"
@@ -647,9 +580,9 @@ class TextureTool(object):
 			pass
 
 	def packer_dir(self, path):
-		if self.args.log:
+		if args.log:
 			print("packer_dir >", path)
-		recursive = self.args.recursive
+		recursive = args.recursive
 		if not os.path.isdir(path):
 			print("packer_dir is not dir >", path)
 			return
@@ -661,10 +594,10 @@ class TextureTool(object):
 					continue
 				if name in ignore_folder:
 					continue
-				if self.args.ignore_list and name in self.args.ignore_list:
+				if args.ignore_list and name in args.ignore_list:
 					continue
-				if self.args.image_folder:
-					if name in self.args.image_folder:
+				if args.image_folder:
+					if name in args.image_folder:
 						self.pack(full_name)
 				else:
 					self.pack(full_name)
@@ -673,20 +606,20 @@ class TextureTool(object):
 
 	# Get the all files & directories in the specified directory (path).
 	def unpacker_dir(self, path):
-		if self.args.log:
+		if args.log:
 			print("unpacker_dir >", path)
-		recursive = self.args.recursive
+		recursive = args.recursive
 		for name in os.listdir(path):
 			full_name = os.path.join(path, name)
 			if full_name.endswith('.plist'):
 				self.unpacker(full_name)
 				pass
-			elif self.args.image_folder and (full_name.endswith('.png') or full_name.endswith('.pvr.ccz')):
-				for folder in self.args.image_folder:
-					if folder == "*" or os.path.relpath(path, self.args.path).replace("\\", "/").startswith(folder.replace("\\", "/")):
+			elif args.image_folder and (full_name.endswith('.png') or full_name.endswith('.pvr.ccz')):
+				for folder in args.image_folder:
+					if folder == "*" or os.path.relpath(path, args.path).replace("\\", "/").startswith(folder.replace("\\", "/")):
 						self.unpacker(full_name)
 						break
-				if self.args.image_folder[0] == "*":
+				if args.image_folder[0] == "*":
 					self.unpacker(full_name)
 					pass
 			elif recursive and os.path.isdir(full_name):
@@ -707,6 +640,7 @@ def main():
 	group_dir.add_argument("-r", "--recursive", action="store_true", default=False)
 
 	group_option = parser.add_argument_group('For option')
+	group_option.add_argument("-p", "--platform", type=str, metavar="platform", default='android')
 	group_option.add_argument("-tf", "--texture_format", type=str, metavar="texture_format", default='png')
 	group_option.add_argument("-opt", "--image_option", type=str, metavar="image_opt", default='RGBA8888')
 	group_option.add_argument("-mpk", "--multipack", action="store_true", default=False)
@@ -715,13 +649,17 @@ def main():
 	group_option.add_argument("-oo", "--other_option", type=str, metavar="other_option", default='')
 	group_option.add_argument("-igl", "--ignore_list", nargs="*", type=str, metavar="ignore_list", help="ignore list when pack")
 	group_option.add_argument("-l", "--log", action="count", default=0)
+	group_option.add_argument("-ps", "--poolSize", type=int, default=1, help="ThreadPool size")
 
-	args = parser.parse_args()
+	param = parser.parse_args()
+	g_init(param)
+	global args
+	args = get_args()
 	if args.log:
 		print("command >", args.command.lower())
 		print("path >", args.path)
 
-	textureTool = TextureTool(args)
+	textureTool = TextureTool()
 	textureTool.run()
 	
 if __name__ == '__main__':
