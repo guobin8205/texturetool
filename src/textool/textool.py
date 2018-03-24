@@ -58,7 +58,7 @@ class TextureTool(object):
 
 	def command_test3(self):
 		build = BuildTool()
-		build.make_res_flist()
+		build.make_flist()
 		# for file in files:
 		# 	print ("file=" + file)
 		# 	return

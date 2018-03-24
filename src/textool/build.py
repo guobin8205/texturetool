@@ -34,7 +34,7 @@ class BuildTool(object):
 			'version':args.res_version,
 			'files':res_files
 		}
-		res_flist_data = serialize_lua(res_file_list)
+		res_flist_data = "return " + serialize_lua(res_file_list)
 		res_flist =  os.path.join(args.path, "res.flist")
 		resfile = codecs.open(res_flist, 'wb', 'utf-8')
 		resfile.write(res_flist_data)
@@ -54,7 +54,7 @@ class BuildTool(object):
 			'launcher':get_file_md5(os.path.join(args.path, "lib/launcher.lib")),
 			'files':app_files
 		}
-		app_flist_data = serialize_lua(app_file_list)
+		app_flist_data = "return " + serialize_lua(app_file_list)
 		app_flist =  os.path.join(args.path, "app.flist")
 		appfile = open(app_flist, 'wb')
 		appfile.write(app_flist_data)
@@ -68,7 +68,7 @@ class BuildTool(object):
 			'version':args.res_version,
 			'files':res_files
 		}
-		res_flist_data = serialize_lua(res_file_list)
+		res_flist_data = "return " + serialize_lua(res_file_list)
 		res_flist =  os.path.join(args.path, "res.flist")
 		resfile = codecs.open(res_flist, 'wb', 'utf-8')
 		resfile.write(res_flist_data)
