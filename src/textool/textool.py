@@ -1,6 +1,6 @@
-#!/usr/bin/env python
-# coding=utf-8
-# Python 2.7.3
+#!/usr/bin/python
+#coding=utf-8
+#Python 2.7.3
 
 from __future__ import print_function
 
@@ -58,7 +58,7 @@ class TextureTool(object):
 
 	def command_test3(self):
 		build = BuildTool()
-		build.make_flist()
+		build.make_res_flist()
 		# for file in files:
 		# 	print ("file=" + file)
 		# 	return
@@ -650,6 +650,10 @@ def main():
 	group_option.add_argument("-igl", "--ignore_list", nargs="*", type=str, metavar="ignore_list", help="ignore list when pack")
 	group_option.add_argument("-l", "--log", action="count", default=0)
 	group_option.add_argument("-ps", "--poolSize", type=int, default=1, help="ThreadPool size")
+	group_option.add_argument("-rl", "--resource_list", nargs="*", type=str, metavar="resource_list", help="resouce list when build")
+	group_option.add_argument("-av", "--app_version", nargs="*", type=str, metavar="app_version", default='1.0.0', help="app list version when build")
+	group_option.add_argument("-rv", "--res_version", nargs="*", type=int, metavar="res_version", default=0, help="res list version when build")
+	group_option.add_argument("-de", "--debug", nargs="*", type=int, metavar="debug", default=0, help="res list debug when build")
 
 	param = parser.parse_args()
 	g_init(param)

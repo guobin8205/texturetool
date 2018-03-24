@@ -1,6 +1,6 @@
-#!/usr/bin/env python  
-# coding=utf-8  
-# Python 2.7.3  
+#!/usr/bin/python
+#coding=utf-8
+#Python 2.7.3
 
 import os,sys
 from parse import *
