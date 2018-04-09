@@ -1,7 +1,6 @@
-#!/usr/bin/python
+#/usr/bin/python2
 #coding=utf-8
 #Python 2.7.3
-
 from __future__ import print_function
 
 import os
@@ -17,6 +16,7 @@ import tempfile
 import struct
 import plistlib
 import audiotranscode
+import subprocess
 
 from utils import *
 from convert import *
@@ -28,7 +28,6 @@ from plistlib import readPlist
 from collections import OrderedDict
 from multiprocessing import Pool, Lock
 from multiprocessing.dummy import Pool as ThreadPool
-from distutils.spawn import find_executable
 
 usage = """
 %(prog)s build D:/project/tag/v2.0 -i D:/project/tag/v1.0 -l -if ui/item0 ui/item1
@@ -52,9 +51,14 @@ class TextureTool(object):
 		elif self.command == 'pack':
 			return self.command_pack()
 		elif self.command == 'test':
-			return self.command_test3()
+			return self.command_test()
 		else:
 			print("unkown command,> ", self.command)
+
+	def command_build(self):
+		build = BuildTool()
+		return build.execute()
+    	pass
 
 	def command_test3(self):
 		build = BuildTool()
@@ -190,9 +194,10 @@ class TextureTool(object):
 					return_data.append(data)
 			
 			if os.path.isdir(args.tempdir):
-				shutil.rmtree(args.tempdir)
+				# shutil.rmtree(args.tempdir)
+				# print(args.tempdir)
 				pass
-			print('total elapse time %d seconds'% (time.time()-start_time))
+			print('total elapsed time %ds'% (time.time()-start_time))
 		pass
 
 	def convert_to_etc1(self, _file):
@@ -227,7 +232,7 @@ class TextureTool(object):
 
 		return True
 
-	def command_build(self):
+	def command_build2(self):
 		init = self.initbuildArgs()
 		if not init:
 			return
@@ -647,13 +652,14 @@ def main():
 	group_option.add_argument("-mpl", "--multipack_list", nargs="*", type=str, metavar="multipack_list", help="multipack image list")
 	group_option.add_argument("-nti", "--no_trim_image", nargs="*", type=str, metavar="no_trim_image", help="no-trim image list")
 	group_option.add_argument("-oo", "--other_option", type=str, metavar="other_option", default='')
+	group_option.add_argument("-ncl", "--no_convert_list", nargs="*", type=str, metavar="no_convert_list", help="no convert list when convert")
 	group_option.add_argument("-igl", "--ignore_list", nargs="*", type=str, metavar="ignore_list", help="ignore list when pack")
 	group_option.add_argument("-l", "--log", action="count", default=0)
 	group_option.add_argument("-ps", "--poolSize", type=int, default=1, help="ThreadPool size")
 	group_option.add_argument("-rl", "--resource_list", nargs="*", type=str, metavar="resource_list", help="resouce list when build")
-	group_option.add_argument("-av", "--app_version", nargs="*", type=str, metavar="app_version", default='1.0.0', help="app list version when build")
-	group_option.add_argument("-rv", "--res_version", nargs="*", type=int, metavar="res_version", default=0, help="res list version when build")
-	group_option.add_argument("-de", "--debug", nargs="*", type=int, metavar="debug", default=0, help="res list debug when build")
+	group_option.add_argument("-av", "--app_version", type=str, metavar="app_version", default='1.0.0', help="app list version when build")
+	group_option.add_argument("-rv", "--res_version", type=int, metavar="res_version", default=0, help="res list version when build")
+	group_option.add_argument("-de", "--debug", type=int, metavar="debug", default=0, help="res list debug when build")
 
 	param = parser.parse_args()
 	g_init(param)

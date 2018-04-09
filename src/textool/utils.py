@@ -10,18 +10,39 @@ import struct
 import time,datetime
 from config import *
 from multiprocessing import Lock
+from distutils.spawn import find_executable
 
 def g_init(param):
     global args
     args = param
+    if args.path:
+        args.path = args.path.replace('\\','/')
+    if args.input:
+        args.input = args.input.replace('\\','/')
+    if args.output:
+        args.output = args.output.replace('\\','/')
+    pass
 
 def get_args():
     return args
 
+def command_available(command):
+    return bool(find_executable(command))
+
+def is_pvrtool_valid():
+    return command_available("PVRTexToolCLI")
+
+def is_ignore_path(relpath, ignores):
+    if relpath and ignores:
+        for path in ignores:
+            if relpath.startswith(path):
+                return True
+    return False
+
 loglock = Lock()
-def log(*args):
+def log(s):
     if loglock.acquire():
-        print(args)
+        print(s)
         loglock.release()
     pass
 
@@ -88,10 +109,11 @@ def get_all_files(path, extentions=None, ignores=None):
         for root, dirs, files in os.walk(path):
             for name in files:
                 fileName, fileSuffix = os.path.splitext(name)
-                fullName = root + '/' + name
+                fullName = os.path.join(root, name)
+                fullName = fullName.replace('\\','/')
                 relpath = get_file_relpath(fullName, path)
-                if (extentions == None or (fileSuffix in extentions))  \
-                and (ignores == None or not (relpath in ignores)) \
+                if (extentions == None or (len(fileSuffix) > 0 and fileSuffix in extentions))  \
+                and (ignores == None or not is_ignore_path(relpath, ignores)) \
                 and (ignores == None or not (fileSuffix in ignores)):
                     if not os.path.exists(fullName):
                         continue
@@ -116,6 +138,9 @@ def convert_pvr_to_png(image_file, image_ext):
 		return True
 	return False
 
+def serialize_luafile(data):
+    return "return " + serialize_lua(data)
+
 def serialize_lua(data):
     lua = ""
     vtype = type(data)
@@ -138,18 +163,18 @@ def serialize_lua(data):
         for value in data:
             temp.append(serialize_lua(value))
             pass
-        lua = lua + ",".join(temp)
-        lua = lua + "}\n"
+        lua = lua + ",\n".join(temp)
+        lua = lua + "}"
         pass
     elif vtype == dict:
         lua = lua + "{"
         temp = []
-        for key, value in data.items():
+        for key, value in sorted(data.iteritems(), key=lambda (k,v):dict_sorts.index(k) if k in dict_sorts else 999):
             temp.append("[" + serialize_lua(key) + "]=" + serialize_lua(value))
-        lua = lua + ",".join(temp)
-        lua = lua + "}\n"
+        lua = lua + ",\n".join(temp)
+        lua = lua + "}"
         pass
     else:
-        return None
+        return ""
     return lua
     pass

@@ -1,10 +1,14 @@
-#!/usr/bin/python
+#/usr/bin/python2
 #coding=utf-8
 #Python 2.7.3
 import os
 import plistlib
 import codecs
+import tempfile
+import shutil
+import zlib, zipfile
 from utils import *
+from convert import *
 from multiprocessing.dummy import Pool as ThreadPool
 
 class BuildTool(object):
@@ -20,13 +24,124 @@ class BuildTool(object):
 		if args.ignore_list:
 			self.ignore_list = args.ignore_list
 			pass
+		self.no_convert_list = None
+		if args.no_convert_list:
+			self.no_convert_list = args.no_convert_list
+			pass
 
 	def execute(self):
-		print("BuildTool excute >")
+		self.command = args.path
+		print("BuildTool excute > %s" % self.command)
+		start_time = time.time()
+		try:
+			self.project_path = args.input
+			if self.command == "flist":
+				self.make_flist()
+			elif self.command == "res.flist":
+				self.make_res_flist()
+			elif self.command == "project":
+				if not is_pvrtool_valid():
+					print("PVRTexToolCLI not found...")
+					return
+				self.project_path = args.output
+				self.build_project()
+				pass
+			else:
+				pass
+			print('total elapsed time %ds'% (time.time()-start_time))
+			print("done!")
+		except Exception as exc:
+			print(exc)
+			print("failed!")
+		finally:
+			pass
+		
+
+	def build_project(self):
+		if args.output == None:
+			print(u"output not found!")
+			return False
+		if not os.path.exists(args.output):
+			print(u"%s directory creating ..." % (args.output))
+			shutil.copytree(args.input, args.output)
+			print(u"%s directory created!" % (args.output))
+			pass
+
+		return_data = self.convert_resource()
+
+		if not self.check_files():
+			raise Exception("not all files converted!") 
+
+		if return_data != None:
+			self.make_plist(return_data)
+		
+		self.make_flist()
 		pass
 
+	def convert_resource(self):
+		if args.image_option == "ETC1":
+			return_data = {}
+			files = get_all_files(self.project_path, (".png", ".jpg"), self.no_convert_list)
+			print ("total converting %d files" % len(files))
+			start_time = time.time()
+			args.tempdir = tempfile.mkdtemp()
+			
+			if args.poolSize > 1 and len(files) > 0:
+				pool = ThreadPool(args.poolSize)
+				pool.map(self.convert_to_etc1, files)
+				pool.close()
+				pool.join()
+			else:
+				for file in files:
+					data = self.convert_to_etc1(file)
+
+			if os.path.isdir(args.tempdir):
+				shutil.rmtree(args.tempdir)
+				pass
+
+			print('total converting time %d seconds'% (time.time()-start_time))
+			files = get_all_files(self.project_path, (".ccz"), self.no_convert_list)
+			for file in files:
+				relpath = os.path.relpath(file, self.project_path)
+				src_key = ""
+				if os.path.exists(file + "@alpha"):
+					src_key = relpath.replace('.pvr.ccz','.png').replace('\\','/')
+				else:
+					src_key = relpath.replace('.pvr.ccz','.jpg').replace('\\','/')
+				src_val = relpath.replace('\\','/')
+				return_data[src_key] = src_val
+			return return_data
+		
+		return None 
+
+	def convert_to_etc1(self, _file):
+		dirname, _ = os.path.split(os.path.relpath(_file, self.project_path))
+		output_dir = os.path.join(self.project_path, dirname)
+		tempdir = os.path.join(args.tempdir, dirname)
+		data = convert_to_etc1(_file, output_dir, tempdir, "", True, True)
+		return data
+
+	def check_files(self):
+		files = get_all_files(self.project_path, (".png", ".jpg"), self.no_convert_list)
+		if len(files) > 0:
+			for file in files:
+				fileName, fileSuffix = os.path.splitext(file)
+				pvrpath = fileName + ".pvr.ccz"
+				if os.path.exists(pvrpath):
+					if get_file_modifytime(file) < get_file_modifytime(pvrpath):
+						os.remove(file)
+				else:
+					return False
+				pass
+		
+		return True
+
 	def make_res_flist(self):
-		allfiles = get_all_files(args.path, None, self.ignore_list)
+		zippath = os.path.join(self.project_path, "res.zip")
+		if os.path.exists(zippath):
+			os.remove(zippath)
+
+		allfiles = get_all_files(self.project_path, None, self.ignore_list)
 		is_res_res = lambda x:self.is_resource(x)
 		files = filter(is_res_res, allfiles)
 		res_files = self.get_file_datalist(files)
@@ -34,16 +149,35 @@ class BuildTool(object):
 			'version':args.res_version,
 			'files':res_files
 		}
-		res_flist_data = "return " + serialize_lua(res_file_list)
-		res_flist =  os.path.join(args.path, "res.flist")
+		res_flist_data = serialize_luafile(res_file_list)
+		res_flist =  os.path.join(self.project_path, "res.flist")
 		resfile = codecs.open(res_flist, 'wb', 'utf-8')
 		resfile.write(res_flist_data)
 		resfile.close()
 		print(u"res.flist %d files done!" % len(res_files))
+
+		z = zipfile.ZipFile(zippath, mode = "w", compression = zipfile.ZIP_DEFLATED)
+		z.write(res_flist, "res.flist")
+		z.close()
+		print(u"create res.zip done!")
 		pass
 
 	def make_flist(self):
-		allfiles = get_all_files(args.path, None, self.ignore_list)
+		zippath = os.path.join(self.project_path, "flist.zip")
+		if os.path.exists(zippath):
+			os.remove(zippath)
+			
+		if os.path.exists(os.path.join(self.project_path, "res.zip")):
+			os.remove(os.path.join(self.project_path, "res.zip"))
+
+		app_flist =  os.path.join(self.project_path, "flist")
+		if os.path.exists(app_flist):
+			os.remove(app_flist)
+		res_flist =  os.path.join(self.project_path, "res.flist")
+		if os.path.exists(res_flist):
+			os.remove(res_flist)
+
+		allfiles = get_all_files(self.project_path, None, self.ignore_list)
 		is_app_res = lambda x:not self.is_resource(x)
 		files = filter(is_app_res, allfiles)
 		app_files = self.get_file_datalist(files)
@@ -51,15 +185,14 @@ class BuildTool(object):
 		app_file_list = {
 			'version':args.app_version,
 			'debug':0,
-			'launcher':get_file_md5(os.path.join(args.path, "lib/launcher.lib")),
+			'launcher':get_file_md5(os.path.join(self.project_path, "lib/launcher.lib")),
 			'files':app_files
 		}
-		app_flist_data = "return " + serialize_lua(app_file_list)
-		app_flist =  os.path.join(args.path, "app.flist")
+		app_flist_data = serialize_luafile(app_file_list)
 		appfile = open(app_flist, 'wb')
 		appfile.write(app_flist_data)
 		appfile.close()
-		print(u"app.flist %d files done!" % len(app_files))
+		print(u"flist %d files done!" % len(app_files))
 		
 		is_res_res = lambda x:self.is_resource(x)
 		files = filter(is_res_res, allfiles)
@@ -68,31 +201,46 @@ class BuildTool(object):
 			'version':args.res_version,
 			'files':res_files
 		}
-		res_flist_data = "return " + serialize_lua(res_file_list)
-		res_flist =  os.path.join(args.path, "res.flist")
+		res_flist_data = serialize_luafile(res_file_list)
 		resfile = codecs.open(res_flist, 'wb', 'utf-8')
 		resfile.write(res_flist_data)
 		resfile.close()
 		print(u"res.flist %d files done!" % len(res_files))
+
+		z = zipfile.ZipFile(zippath, mode = "w", compression = zipfile.ZIP_DEFLATED)
+		z.write(app_flist, "flist")
+		z.write(res_flist, "res.flist")
+		z.close()
+		print(u"create flist.zip done!")
 		pass
 
 	def make_plist(self,d):
-		if d == None:
+		if d == None or len(d) == 0:
 			return False
-		plist_string = plistlib.writePlistToString(d)
-		
+		resourse = {}
+		resourse["metadata"] = { 'version':1 }
+		resourse["filenames"] = d
+		plist_string = plistlib.writePlistToString(resourse)
+		plist_file = os.path.join(args.output, "res.plist")
+		file = open(plist_file, 'wb')
+		file.write(plist_string)
+		file.close()
+		print(u"res.plist %d files done!" % len(d))
 		pass
 
 
 	def is_resource(self, file):
 		if file and self.resource_list:
-			relpath = get_file_relpath(file, args.path)
+			relpath = get_file_relpath(file, self.project_path)
 			for res in self.resource_list:
 				if relpath.startswith(res):
 					return True
 		return False
 
 	def get_file_datalist(self, files):
+		data = []
+		if files == None or len(files) == 0:
+			return data
 		pool = ThreadPool(args.poolSize)
 		data = pool.map(self.single_file_data, files)
 		pool.close()
@@ -103,7 +251,7 @@ class BuildTool(object):
 	def single_file_data(self, file):
 		if os.path.isfile(file):
 			return {
-				'name' : get_file_relpath(file, args.path), 
+				'name' : get_file_relpath(file, self.project_path), 
 				'code' : get_file_md5(file),
 				'size' : os.path.getsize(file)
 			}

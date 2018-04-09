@@ -4,14 +4,16 @@ from setuptools import setup, find_packages
 
 setup(
     name = 'textool',
-    version = '1.0.9',
+    version = '1.1.0',
     keywords = ('textool', 'texturepacker'),
     description = 'A command line tool to convert TexturePacker file format.',
     license = 'MIT License',
     install_requires = [
         'Pillow',
         'parse',
-        'PythonMagick'
+        'plistlib',
+        'zlib',
+        'hashlib'
     ],
     url = 'https://github.com/guobin8205/texturetool',
     author = 'guobin',

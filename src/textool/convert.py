@@ -3,9 +3,11 @@
 #Python 2.7.3
 import os, sys
 import tempfile
+import win32file
 import shutil
 import struct
 import zlib
+import time
 import multiprocessing
  
 from subprocess import *
@@ -19,15 +21,17 @@ def pvr_compress_ccz(tempfile, destfile):
 	pvr = open(tempfile, 'rb')
 	pvrData = pvr.read()
 	pvrccz = open(destfile, "wb")
+	# print(destfile, len(pvrData))
 	pvrccz.write(struct.pack(">4sHHII","CCZ!",0,1,0,len(pvrData)))
 	pvrccz.write(zlib.compress(pvrData))
 	pvr.close()
 	pvrccz.close()
 	return True
 
-def convert_to_etc1(input_path, output_dir, tempdir=None, _suffix="", _zlib=True):
+def convert_to_etc1(input_path, output_dir, tempdir=None, _suffix="", _zlib=True, _cleanup=False):
 	# log("convert_to_etc1 image path > %s"%(input_path))
 	start_time = time.time()
+	args = get_args()
 	filepath, filename = os.path.split(input_path)
 	pre,ext = os.path.splitext(filename)
 	if not os.path.isdir(output_dir):
@@ -53,7 +57,6 @@ def convert_to_etc1(input_path, output_dir, tempdir=None, _suffix="", _zlib=True
 
 			return {"color": dst_rgb_pvr_file}
 		pass
-	# tmp_rgb_file = tempfile.mktemp(ext)
 	
 	try:
 		if tempdir != None:
@@ -72,13 +75,15 @@ def convert_to_etc1(input_path, output_dir, tempdir=None, _suffix="", _zlib=True
 			# tmp_a_file = tempfile.mktemp(ext)
 			tmp_a_file = os.path.join(newtempdir, pre.replace(" ", "_") + _suffix + "_a.png")
 			# log("convert_to_etc1 tmp_a_file path > ", os.getpid(), tmp_a_file)
-			im = Image.open(input_path, 'r')
-			im = im.convert('RGBA')
-			rgbData = im.tobytes("raw", "RGB")
-			alphaData = im.tobytes("raw", "A")
-			im.convert('RGB').save(tmp_rgb_file)
-			Image.frombytes("L", im.size, alphaData).save(tmp_a_file)
-			im.close()
+			with open(input_path, 'rb') as f:
+				im = Image.open(f)
+				im = im.convert('RGBA')
+				rgbData = im.tobytes("raw", "RGB")
+				alphaData = im.tobytes("raw", "A")
+				im.convert('RGB').save(tmp_rgb_file)
+				Image.frombytes("L", im.size, alphaData).save(tmp_a_file)
+				del im
+				pass
 			pass
 			# command = "convert %s -alpha Off %s" %(input_path, tmp_rgb_file)
 			# os.system(command)
@@ -92,40 +97,38 @@ def convert_to_etc1(input_path, output_dir, tempdir=None, _suffix="", _zlib=True
 		tmp_rgb_pvr_file = os.path.join(newtempdir, pre.replace(" ", "_") + _suffix + "_rgb.pvr")
 		# log("convert_to_etc1 tmp_rgb_pvr_file path > ", os.getpid(), tmp_rgb_pvr_file)
 		command = "%s -f ETC1 -i %s -o %s -q etcfast" %("PVRTexToolCLI", tmp_rgb_file, tmp_rgb_pvr_file)
+		if args.log:
+			log("convert_to_etc1 command > %s" % command)
 		
-		p = Popen(command,stdin=PIPE,stdout=PIPE,stderr=PIPE)
-		p.communicate()
+		p = Popen(command,stdout=PIPE, shell=True,stderr=PIPE)
+		out, err = p.communicate()
+		if p.returncode != 0:
+			log("Non zero exit code:%s executing: %s" % (p.returncode, command))
+			log(err)
+			return
 
 		if exists_alpha:
 			# tmp_a_pvr_file = tempfile.mktemp(".pvr")
 			tmp_a_pvr_file = os.path.join(newtempdir, pre.replace(" ", "_") + _suffix + "_a.pvr")
 			# log("convert_to_etc1 tmp_a_pvr_file path > ", os.getpid(), tmp_a_pvr_file)
 			command = "%s -f ETC1 -i %s -o %s -q etcfast" %("PVRTexToolCLI", tmp_a_file, tmp_a_pvr_file)
+			if args.log:
+				log("convert_to_etc1 command alpha > %s" % command)
 			# log(command)
 			# os.system(command)
-			p = Popen(command,stdin=PIPE,stdout=PIPE,stderr=PIPE)
-			p.communicate()
-			# os.system(command)
-			
-			# time.sleep(0.5)
-			# while p.poll() is None:
-			#     time.sleep(0.1)
-			# log("hijklmn", p.stdout.read())
-			# log("remove tmp_a_file path > ", os.getpid(), tmp_a_pvr_file)
-			# os.remove(tmp_a_file)
+			p = Popen(command,stdout=PIPE, shell=True,stderr=PIPE)
+			out, err = p.communicate()
+			if p.returncode != 0:
+				log("Non zero exit code:%s executing: %s" % (p.returncode, command))
+				log(err)
+				return
 		
 		if _zlib:
 			if pvr_compress_ccz(tmp_rgb_pvr_file, dst_rgb_pvr_file):
-				# time.sleep(0.5)
-				# log("remove tmp_rgb_pvr_file path > ", os.getpid(), tmp_rgb_pvr_file)
-				# os.remove(tmp_rgb_pvr_file)
 				pass
 			
 			if exists_alpha:
 				if pvr_compress_ccz(tmp_a_pvr_file, dst_a_pvr_file):
-					# time.sleep(0.5)
-					# log("remove tmp_a_pvr_file path > ", os.getpid(), tmp_a_pvr_file)
-					# os.remove(tmp_a_pvr_file)
 					pass
 				pass
 		else:
@@ -140,9 +143,9 @@ def convert_to_etc1(input_path, output_dir, tempdir=None, _suffix="", _zlib=True
 	finally:
 		if tempdir == None:
 			shutil.rmtree(newtempdir)
-
+		
 		microseconds = round((time.time()-start_time),2)
-		log('convert %s elapse %.2f s'% (input_path, microseconds))
+		log("convert %s elapsed time %.2fs" % (input_path, microseconds))
 
 	if exists_alpha:
 		return {"color": dst_rgb_pvr_file, "alpha": dst_a_pvr_file}
