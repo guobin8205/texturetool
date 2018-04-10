@@ -1,5 +1,8 @@
 *.pyc
+*.spec
 build
 dist
 textool.egg-info
+app.ico
 .vscode
+src/textool/PVRTexToolCLI.exe

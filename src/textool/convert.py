@@ -1,9 +1,8 @@
 #!/usr/bin/python
 #coding=utf-8
-#Python 2.7.3
+#Python 3.6
 import os, sys
 import tempfile
-import win32file
 import shutil
 import struct
 import zlib
@@ -22,7 +21,7 @@ def pvr_compress_ccz(tempfile, destfile):
 	pvrData = pvr.read()
 	pvrccz = open(destfile, "wb")
 	# print(destfile, len(pvrData))
-	pvrccz.write(struct.pack(">4sHHII","CCZ!",0,1,0,len(pvrData)))
+	pvrccz.write(struct.pack(">4sHHII",b"CCZ!",0,1,0,len(pvrData)))
 	pvrccz.write(zlib.compress(pvrData))
 	pvr.close()
 	pvrccz.close()
@@ -136,7 +135,7 @@ def convert_to_etc1(input_path, output_dir, tempdir=None, _suffix="", _zlib=True
 			if exists_alpha:
 				os.rename(tmp_a_pvr_file, dst_a_pvr_file)
 
-	except Exception, e:
+	except Exception as e:
 		raise
 	else:
 		pass

@@ -1,6 +1,6 @@
 #!/usr/bin/env python  
 # coding=utf-8  
-# Python 2.7.3  
+# Python 3.6 
 
 from parse import parse
 
@@ -11,7 +11,7 @@ def parsedata(_data):
 		if fmt not in (2,3):
 			print("fail: unsupport format " + fmt)
 			return None
-	except AttributeError, e:
+	except AttributeError as e:
 		return None
 	
 	frame_data_list = []

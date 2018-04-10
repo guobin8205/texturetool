@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #coding=utf-8
-#Python 2.7.3
+#Python 3.6
 
 import os,sys
 from parse import *
@@ -60,8 +60,8 @@ def read_flist(flist_path):
 			pass
 		return flist_data
 		#print(flist_data)
-	except Exception, e:
-		print "[Error]: ", e
+	except Exception as e:
+		print("[Error]: %s" % e)
 		print("fail: can't find cache_path > ", flist_file)
 	finally:
 		f.close()

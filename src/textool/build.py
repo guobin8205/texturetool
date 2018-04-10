@@ -1,6 +1,6 @@
 #/usr/bin/python2
 #coding=utf-8
-#Python 2.7.3
+#Python 3.6
 import os
 import plistlib
 import codecs
@@ -140,10 +140,10 @@ class BuildTool(object):
 		zippath = os.path.join(self.project_path, "res.zip")
 		if os.path.exists(zippath):
 			os.remove(zippath)
-
+		
 		allfiles = get_all_files(self.project_path, None, self.ignore_list)
 		is_res_res = lambda x:self.is_resource(x)
-		files = filter(is_res_res, allfiles)
+		files = list(filter(is_res_res, allfiles))
 		res_files = self.get_file_datalist(files)
 		res_file_list = {
 			'version':args.res_version,
@@ -179,9 +179,8 @@ class BuildTool(object):
 
 		allfiles = get_all_files(self.project_path, None, self.ignore_list)
 		is_app_res = lambda x:not self.is_resource(x)
-		files = filter(is_app_res, allfiles)
+		files = list(filter(is_app_res, allfiles))
 		app_files = self.get_file_datalist(files)
-
 		app_file_list = {
 			'version':args.app_version,
 			'debug':0,
@@ -189,13 +188,13 @@ class BuildTool(object):
 			'files':app_files
 		}
 		app_flist_data = serialize_luafile(app_file_list)
-		appfile = open(app_flist, 'wb')
+		appfile = codecs.open(app_flist, 'wb', 'utf-8')
 		appfile.write(app_flist_data)
 		appfile.close()
 		print(u"flist %d files done!" % len(app_files))
 		
 		is_res_res = lambda x:self.is_resource(x)
-		files = filter(is_res_res, allfiles)
+		files = list(filter(is_res_res, allfiles))
 		res_files = self.get_file_datalist(files)
 		res_file_list = {
 			'version':args.res_version,
@@ -217,21 +216,22 @@ class BuildTool(object):
 	def make_plist(self,d):
 		if d == None or len(d) == 0:
 			return False
+		
+		plist_file = os.path.join(args.output, "res.plist")
 		resourse = {}
 		resourse["metadata"] = { 'version':1 }
 		resourse["filenames"] = d
-		plist_string = plistlib.writePlistToString(resourse)
-		plist_file = os.path.join(args.output, "res.plist")
-		file = open(plist_file, 'wb')
-		file.write(plist_string)
-		file.close()
+		plist_string = plistlib.writePlist(resourse, plist_file)
+		# file = open(plist_file, 'wb')
+		# file.write(plist_string)
+		# file.close()
 		print(u"res.plist %d files done!" % len(d))
 		pass
 
 
-	def is_resource(self, file):
-		if file and self.resource_list:
-			relpath = get_file_relpath(file, self.project_path)
+	def is_resource(self, _file):
+		if _file and self.resource_list:
+			relpath = get_file_relpath(_file, self.project_path)
 			for res in self.resource_list:
 				if relpath.startswith(res):
 					return True
@@ -246,8 +246,7 @@ class BuildTool(object):
 		pool.close()
 		pool.join()
 		return data
-    	pass
-
+		
 	def single_file_data(self, file):
 		if os.path.isfile(file):
 			return {

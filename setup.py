@@ -9,8 +9,8 @@ setup(
     description = 'A command line tool to convert TexturePacker file format.',
     license = 'MIT License',
     install_requires = [
-        'Pillow',
-        'parse',
+        'Pillow>=5.0.0',
+        'parse>1.8.0',
         'plistlib',
         'zlib',
         'hashlib'

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #coding=utf-8
-#Python 2.7.3
+#Python 3.6
 import os
 import sys
 import hashlib
@@ -69,7 +69,7 @@ def get_file_md5(filename):
     if not os.path.isfile(filename):
         return
     myhash = hashlib.md5()
-    f = file(filename,'rb')
+    f = open(filename,'rb')
     while True:
         b = f.read()
         if not b :
@@ -144,8 +144,7 @@ def serialize_luafile(data):
 def serialize_lua(data):
     lua = ""
     vtype = type(data)
-    # print(vtype)
-    if vtype == int or vtype == long or vtype == float:
+    if vtype == int or vtype == float:
         lua = lua + str(data)
         pass
     elif vtype == bool:
@@ -169,7 +168,7 @@ def serialize_lua(data):
     elif vtype == dict:
         lua = lua + "{"
         temp = []
-        for key, value in sorted(data.iteritems(), key=lambda (k,v):dict_sorts.index(k) if k in dict_sorts else 999):
+        for key, value in sorted(data.items(), key=lambda d:dict_sorts.index(d[0]) if d[0] in dict_sorts else 999):
             temp.append("[" + serialize_lua(key) + "]=" + serialize_lua(value))
         lua = lua + ",\n".join(temp)
         lua = lua + "}"

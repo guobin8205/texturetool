@@ -1,6 +1,6 @@
 #/usr/bin/python2
 #coding=utf-8
-#Python 2.7.3
+#Python 3.6
 from __future__ import print_function
 
 import os
@@ -58,7 +58,6 @@ class TextureTool(object):
 	def command_build(self):
 		build = BuildTool()
 		return build.execute()
-    	pass
 
 	def command_test3(self):
 		build = BuildTool()
@@ -107,7 +106,7 @@ class TextureTool(object):
 				pass
 			pass
 		# print(resourse)
-		plist_string = plistlib.writePlistToString(resourse)
+		plist_string = plistlib.writePlist(resourse)
 		# print(plist_string)
 		plist_file = os.path.join(args.output, "res.plist")
 		print(plist_file)
@@ -361,7 +360,7 @@ class TextureTool(object):
 		
 		try:
 			data = readPlist(full_path)
-		except Exception, _:
+		except Exception as _:
 			print("fail: read plist file failed >", full_path)
 			return False
 
@@ -393,7 +392,7 @@ class TextureTool(object):
 		
 		try:
 			src_image = Image.open(image_file)
-		except Exception, _:
+		except Exception as _:
 			print("fail: can't open image %s " %image_file)
 			return False
 
