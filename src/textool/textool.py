@@ -30,10 +30,13 @@ from multiprocessing import Pool, Lock
 from multiprocessing.dummy import Pool as ThreadPool
 
 usage = """
-%(prog)s build D:/project/tag/v2.0 -i D:/project/tag/v1.0 -l -if ui/item0 ui/item1
-%(prog)s unpack D:/project/tag/v2.0/ui/button.plist -o D:/prj/test
-%(prog)s convert D:/project/tag/v2.0/ui/button.plist -o D:/prj/test
-%(prog)s convert D:/project/tag/v2.0 -o D:/prj/test -r -if ui/item0 ui/item1
+%(prog)s pack pathOrDic -if imagefolder -mpk -o outpath -r -l
+%(prog)s unpack pathOrDic -o D:/prj/test
+%(prog)s convert D:/project/tag/v2.0/ui/button.plist -o D:/prj/test -opt ETC1
+%(prog)s build res.flist -i D:/res -rl resouselist -igl ignorelist -rv resouceversion
+%(prog)s build flist -i D:/res -rl resouselist -igl ignorelist -av appversion -rv resouceversion
+%(prog)s build resource -i input -o output -rl resoucelist -igl ignorelist -ncl noconvertlist -rv resouceversion -opt ETC1
+%(prog)s build project -i input -o output -rl resoucelist -igl ignorelist -ncl noconvertlist -av appversion -rv resouceversion -opt ETC1
 """
 
 class TextureTool(object):
@@ -116,6 +119,9 @@ class TextureTool(object):
 		pass
 
 	def command_pack(self):
+		if not is_texturepacker_valid():
+			print("TexturePacker not found...")
+			return
 		if os.path.isdir(args.path):
 			self.packer_dir(args.path)
 		else:
@@ -123,6 +129,9 @@ class TextureTool(object):
 		pass
 
 	def command_unpack(self):
+		if not is_texturepacker_valid():
+			print("TexturePacker not found...")
+			return
 		if os.path.isdir(args.path):
 			self.unpacker_dir(args.path)
 		elif os.path.isfile(args.path):
@@ -143,10 +152,10 @@ class TextureTool(object):
 		pass
 
 	def getAudioFiles(self):
-		return get_all_files(args.path, (".mp3"))
+		return get_all_files(args.path, (".mp3"), args.no_convert_list)
 
 	def getTextureFiles(self):
-		return get_all_files(args.path, (".png", ".jpg"))
+		return get_all_files(args.path, (".png", ".jpg"), args.no_convert_list)
 
 	def getConvertFiles(self):
 		tempfiles = []
@@ -179,10 +188,11 @@ class TextureTool(object):
 
 		start_time = time.time()
 		files = self.getTextureFiles()
+		print ("total converting %d files" % len(files))
 		if args.image_option == "ETC1":
 			args.tempdir = tempfile.mkdtemp()
 			return_data = []
-			if args.poolSize > 1:
+			if args.poolSize > 1 and len(files) > 0:
 				pool = ThreadPool(args.poolSize)
 				return_data = pool.map(self.convert_to_etc1, files)
 				pool.close()
@@ -400,9 +410,12 @@ class TextureTool(object):
 			temp_image = src_image.crop(frame_data["src_rect"])
 			if frame_data["rotated"]:
 				temp_image = temp_image.rotate(90, expand=1)
-
+			
 			# create dst image
-			dst_image = Image.new('RGBA', frame_data["source_size"], (0,0,0,0))
+			fformat = 'RGBA'
+			if get_image_ext(frame_data["name"]) == ".jpg":
+				fformat = 'RGB'
+			dst_image = Image.new(fformat, frame_data["source_size"], (0,0,0,0))
 			dst_image.paste(temp_image, frame_data["offset"], mask=0)
 
 			output_path = os.path.join(output_dir, frame_data["name"])

@@ -39,6 +39,12 @@ class BuildTool(object):
 				self.make_flist()
 			elif self.command == "res.flist":
 				self.make_res_flist()
+			elif self.command == "resource":
+				if not is_pvrtool_valid():
+					print("PVRTexToolCLI not found...")
+					return
+				self.project_path = args.output
+				self.build_resource()
 			elif self.command == "project":
 				if not is_pvrtool_valid():
 					print("PVRTexToolCLI not found...")
@@ -56,6 +62,23 @@ class BuildTool(object):
 		finally:
 			pass
 		
+	def build_resource(self):
+		if args.output == None:
+			print(u"output not found!")
+			return False
+		if not os.path.exists(args.output):
+			print(u"%s directory creating ..." % (args.output))
+			shutil.copytree(args.input, args.output)
+			print(u"%s directory created!" % (args.output))
+			pass
+
+		return_data = self.convert_resource()
+
+		if not self.check_files():
+			raise Exception("not all files converted!") 
+		
+		self.make_res_flist()
+		pass
 
 	def build_project(self):
 		if args.output == None:
@@ -230,6 +253,8 @@ class BuildTool(object):
 
 
 	def is_resource(self, _file):
+		if self.resource_list == None or len(self.resource_list) == 0:
+			return True
 		if _file and self.resource_list:
 			relpath = get_file_relpath(_file, self.project_path)
 			for res in self.resource_list:

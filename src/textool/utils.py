@@ -32,6 +32,9 @@ def command_available(command):
 def is_pvrtool_valid():
     return command_available("PVRTexToolCLI")
 
+def is_texturepacker_valid():
+    return command_available("TexturePacker")
+
 def is_ignore_path(relpath, ignores):
     if relpath and ignores:
         for path in ignores:
