@@ -1,6 +1,6 @@
 #!/usr/bin/env python  
 # coding=utf-8  
-# Python 2.7.3
+# Python 3.6
 import os, sys
 import tempfile
 import shutil
