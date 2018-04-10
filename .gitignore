@@ -1,5 +1,7 @@
 *.pyc
+*.spec
 build
 dist
+app.ico
 textool.egg-info
 .vscode
