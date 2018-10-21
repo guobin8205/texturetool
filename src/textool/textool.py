@@ -17,7 +17,10 @@ import struct
 import plistlib
 import audiotranscode
 import subprocess
+import chardet
+import codecs
 
+from opencc import OpenCC
 from utils import *
 from convert import *
 from build import BuildTool
@@ -54,7 +57,11 @@ class TextureTool(object):
 		elif self.command == 'pack':
 			return self.command_pack()
 		elif self.command == 'test':
-			return self.command_test()
+			return self.command_test3()
+		elif self.command == 's2t':
+			return self.command_test4()
+		elif self.command == 'findch':
+			return self.command_findch()
 		else:
 			print("unkown command,> ", self.command)
 
@@ -62,14 +69,63 @@ class TextureTool(object):
 		build = BuildTool()
 		return build.execute()
 
+	def command_findch(self):
+		# re.match(r'"(.*[\u4e00-\u9fa5]+.*)"')
+		multi_comment = None
+		single_comment = None
+		_, fileSuffix = os.path.splitext(args.path)
+		if fileSuffix == '.lua':
+			multi_comment = r'--[[.*]]'
+			single_comment = r'--'
+		f = open(args.path,'rb')
+		i = 0
+		count = 0
+		templines = []
+		templine = ""
+		while True:
+			b = f.read()
+			if not b :
+				break
+			
+		pass
+
+	def command_test4(self):
+		files = get_all_files(args.path, [".json"], args.no_convert_list)
+		cc = OpenCC('s2t')
+		print ("files=\n" + '\r\n'.join(files))
+		for f in files:
+			if f.endswith("zh_cn.json"):
+				fo = open(f, 'rb')
+				content = fo.read()
+				source_encoding = chardet.detect(content)['encoding']
+				content = content.decode(source_encoding, 'ignore')
+				# print(content)
+				content = cc.convert(content)
+				codecs.open(f.replace("zh_cn", "zh_tw"), 'w', encoding='utf-8').write(content)
+				fo.close()
+		pass
+
 	def command_test3(self):
-		build = BuildTool()
-		build.make_flist()
-		# for file in files:
-		# 	print ("file=" + file)
-		# 	return
-		# print ("files=\n" + '\r\n'.join(files))\
-		#ffmpeg -i E:\quickv3\sanguosha\res\audio\skill\SKILL_32_1_2.mp3 -f wav - |oggenc2 -q 0 -Q - -o D:/project/SKILL_32_1_2.ogg
+		files = get_all_files(args.path, (".cs"), args.no_convert_list)
+		print(len(files))
+		# print(files[0])
+		# print ("files=\n" + '\r\n'.join(files))
+		cc = OpenCC('s2t')
+		for f in files:
+			fo = open(f, 'rb')
+			content = fo.read()
+			#source_encoding = chardet.detect(content)['encoding']
+			# print(source_encoding)
+			# if source_encoding != None and source_encoding.lower() != 'utf-8':
+			# 	# print (source_encoding, f)
+			# 	content = content.decode(source_encoding, 'ignore')
+			# 	codecs.open(f, 'w', encoding='utf-8').write(content)
+
+			print(len(content))
+			if(len(content)>0):
+				codecs.open(f, 'w', encoding='utf-8').write(cc.convert((content.decode("utf-8"))))
+				# print(content.decode("utf-8"))
+			fo.close()
 		pass
 
 	def testfile3(self, file):
@@ -194,12 +250,12 @@ class TextureTool(object):
 			return_data = []
 			if args.poolSize > 1 and len(files) > 0:
 				pool = ThreadPool(args.poolSize)
-				return_data = pool.map(self.convert_to_etc1, files)
+				return_data = pool.map(self.convert_from_texturepacker, files)
 				pool.close()
 				pool.join()
 			else:
 				for file in files:
-					data = self.convert_to_etc1(file)
+					data = self.convert_from_texturepacker(file)
 					return_data.append(data)
 			
 			if os.path.isdir(args.tempdir):
@@ -208,6 +264,11 @@ class TextureTool(object):
 				pass
 			print('total elapsed time %ds'% (time.time()-start_time))
 		pass
+
+	def convert_from_texturepacker(self, _file):
+		dirname, _ = os.path.split(os.path.relpath(_file, args.path))
+		output_dir = os.path.join(args.output, dirname)
+		return convert_from_texturepacker(_file, output_dir)
 
 	def convert_to_etc1(self, _file):
 		dirname, _ = os.path.split(os.path.relpath(_file, args.path))
@@ -666,6 +727,7 @@ def main():
 	group_option.add_argument("-oo", "--other_option", type=str, metavar="other_option", default='')
 	group_option.add_argument("-ncl", "--no_convert_list", nargs="*", type=str, metavar="no_convert_list", help="no convert list when convert")
 	group_option.add_argument("-igl", "--ignore_list", nargs="*", type=str, metavar="ignore_list", help="ignore list when pack")
+	group_option.add_argument("-icl", "--ignore_copy_list", nargs="*", type=str, metavar="ignore_copy_list", help="ignore copy list when pack")
 	group_option.add_argument("-l", "--log", action="count", default=0)
 	group_option.add_argument("-ps", "--poolSize", type=int, default=1, help="ThreadPool size")
 	group_option.add_argument("-rl", "--resource_list", nargs="*", type=str, metavar="resource_list", help="resouce list when build")

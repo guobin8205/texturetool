@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>frames</key>
+        <dict>
+            <key>bg_lobby.jpg</key>
+            <dict>
+                <key>aliases</key>
+                <array/>
+                <key>spriteOffset</key>
+                <string>{0,0}</string>
+                <key>spriteSize</key>
+                <string>{1334,750}</string>
+                <key>spriteSourceSize</key>
+                <string>{1334,750}</string>
+                <key>textureRect</key>
+                <string>{{1,1},{1334,750}}</string>
+                <key>textureRotated</key>
+                <false/>
+            </dict>
+        </dict>
+        <key>metadata</key>
+        <dict>
+            <key>format</key>
+            <integer>3</integer>
+            <key>premultiplyAlpha</key>
+            <false/>
+            <key>realTextureFileName</key>
+            <string>bg_lobby4.pvr.ccz</string>
+            <key>size</key>
+            <string>{2048,2048}</string>
+            <key>smartupdate</key>
+            <string>$TexturePacker:SmartUpdate:00daa4f9cc2df202ea993a230ea7665b:dd1677a6c54dd99a9cba3b9e68ca4eed:a149c658b9f832690033500b9b438171$</string>
+            <key>textureFileName</key>
+            <string>bg_lobby4.pvr.ccz</string>
+        </dict>
+    </dict>
+</plist>

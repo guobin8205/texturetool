@@ -40,14 +40,14 @@ class BuildTool(object):
 			elif self.command == "res.flist":
 				self.make_res_flist()
 			elif self.command == "resource":
-				if not is_pvrtool_valid():
-					print("PVRTexToolCLI not found...")
+				if not is_texturepacker_valid():
+					print("TexturePacker not found...")
 					return
 				self.project_path = args.output
 				self.build_resource()
 			elif self.command == "project":
-				if not is_pvrtool_valid():
-					print("PVRTexToolCLI not found...")
+				if not is_texturepacker_valid():
+					print("TexturePacker not found...")
 					return
 				self.project_path = args.output
 				self.build_project()
@@ -68,9 +68,12 @@ class BuildTool(object):
 			return False
 		if not os.path.exists(args.output):
 			print(u"%s directory creating ..." % (args.output))
-			shutil.copytree(args.input, args.output)
+			copytree(args.input, args.output, args.ignore_copy_list)
 			print(u"%s directory created!" % (args.output))
 			pass
+		else:
+			print(u"%s check files!" % (args.output))
+			copytree(args.input, args.output, args.ignore_copy_list)
 
 		return_data = self.convert_resource()
 
@@ -84,11 +87,16 @@ class BuildTool(object):
 		if args.output == None:
 			print(u"output not found!")
 			return False
-		if not os.path.exists(args.output):
-			print(u"%s directory creating ..." % (args.output))
-			shutil.copytree(args.input, args.output)
-			print(u"%s directory created!" % (args.output))
-			pass
+
+		if args.input != args.output:
+			if not os.path.exists(args.output):
+				print(u"%s directory creating ..." % (args.output))
+				copytree(args.input, args.output, args.ignore_copy_list)
+				print(u"%s directory created!" % (args.output))
+				pass
+			else:
+				print(u"%s check files!" % (args.output))
+				copytree(args.input, args.output, args.ignore_copy_list)
 
 		return_data = self.convert_resource()
 
@@ -102,8 +110,9 @@ class BuildTool(object):
 		pass
 
 	def convert_resource(self):
-		if args.image_option == "ETC1":
+		if args.image_option == "ETC1" or args.image_option == "PVRTC4":
 			return_data = {}
+			compress_data = {}
 			files = get_all_files(self.project_path, (".png", ".jpg"), self.no_convert_list)
 			print ("total converting %d files" % len(files))
 			start_time = time.time()
@@ -111,31 +120,49 @@ class BuildTool(object):
 			
 			if args.poolSize > 1 and len(files) > 0:
 				pool = ThreadPool(args.poolSize)
-				pool.map(self.convert_to_etc1, files)
+				compress_data = pool.map(self.convert_from_texturepacker, files)
 				pool.close()
 				pool.join()
 			else:
 				for file in files:
-					data = self.convert_to_etc1(file)
+					data = self.convert_from_texturepacker(file)
+					compress_data.append(data)
 
 			if os.path.isdir(args.tempdir):
 				shutil.rmtree(args.tempdir)
 				pass
 
 			print('total converting time %d seconds'% (time.time()-start_time))
-			files = get_all_files(self.project_path, (".ccz"), self.no_convert_list)
-			for file in files:
-				relpath = os.path.relpath(file, self.project_path)
+			for data in compress_data:
+				relpath = os.path.relpath(data.get("color"), self.project_path)
 				src_key = ""
-				if os.path.exists(file + "@alpha"):
+				if data.get("exists_alpha"):
 					src_key = relpath.replace('.pvr.ccz','.png').replace('\\','/')
 				else:
 					src_key = relpath.replace('.pvr.ccz','.jpg').replace('\\','/')
 				src_val = relpath.replace('\\','/')
 				return_data[src_key] = src_val
+				pass
+			# files = get_all_files(self.project_path, (".ccz"), self.no_convert_list)
+			# for file in files:
+			# 	relpath = os.path.relpath(file, self.project_path)
+			# 	src_key = ""
+			# 	if os.path.exists(file + "@alpha"):
+			# 		src_key = relpath.replace('.pvr.ccz','.png').replace('\\','/')
+			# 	else:
+			# 		src_key = relpath.replace('.pvr.ccz','.jpg').replace('\\','/')
+			# 	src_val = relpath.replace('\\','/')
+			# 	return_data[src_key] = src_val
 			return return_data
 		
 		return None 
+
+	def convert_from_texturepacker(self, _file):
+		dirname, _ = os.path.split(os.path.relpath(_file, self.project_path))
+		output_dir = os.path.join(self.project_path, dirname)
+		# tempdir = os.path.join(args.tempdir, dirname)
+		data = convert_from_texturepacker(_file, output_dir)
+		return data
 
 	def convert_to_etc1(self, _file):
 		dirname, _ = os.path.split(os.path.relpath(_file, self.project_path))
@@ -145,17 +172,18 @@ class BuildTool(object):
 		return data
 
 	def check_files(self):
-		files = get_all_files(self.project_path, (".png", ".jpg"), self.no_convert_list)
-		if len(files) > 0:
-			for file in files:
-				fileName, fileSuffix = os.path.splitext(file)
-				pvrpath = fileName + ".pvr.ccz"
-				if os.path.exists(pvrpath):
-					if get_file_modifytime(file) < get_file_modifytime(pvrpath):
-						os.remove(file)
-				else:
-					return False
-				pass
+		if args.image_option == "ETC1" or args.image_option == "PVRTC4":
+			files = get_all_files(self.project_path, (".png", ".jpg"), self.no_convert_list)
+			if len(files) > 0:
+				for file in files:
+					fileName, fileSuffix = os.path.splitext(file)
+					pvrpath = fileName + ".pvr.ccz"
+					if os.path.exists(pvrpath):
+						if get_file_modifytime(file) < get_file_modifytime(pvrpath):
+							os.remove(file)
+					else:
+						return False
+					pass
 		
 		return True
 
@@ -199,7 +227,6 @@ class BuildTool(object):
 		res_flist =  os.path.join(self.project_path, "res.flist")
 		if os.path.exists(res_flist):
 			os.remove(res_flist)
-
 		allfiles = get_all_files(self.project_path, None, self.ignore_list)
 		is_app_res = lambda x:not self.is_resource(x)
 		files = list(filter(is_app_res, allfiles))
@@ -250,7 +277,6 @@ class BuildTool(object):
 		# file.close()
 		print(u"res.plist %d files done!" % len(d))
 		pass
-
 
 	def is_resource(self, _file):
 		if self.resource_list == None or len(self.resource_list) == 0:

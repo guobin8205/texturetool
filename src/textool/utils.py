@@ -5,10 +5,13 @@ import os
 import sys
 import hashlib
 import zlib
+import re
 import tempfile
 import struct
+import shutil
 import time,datetime
 from config import *
+from subprocess import *
 from multiprocessing import Lock
 from distutils.spawn import find_executable
 
@@ -33,7 +36,16 @@ def is_pvrtool_valid():
     return command_available("PVRTexToolCLI")
 
 def is_texturepacker_valid():
-    return command_available("TexturePacker")
+    command = r"TexturePacker"
+    is_valid = command_available(command)
+    if is_valid:
+        p = Popen(command,stdin=PIPE,stdout=PIPE, shell=True,stderr=PIPE)
+        p.communicate(input=b'agree')
+        # p = Popen("TexturePacker --version",stdin=PIPE,stdout=PIPE, shell=True,stderr=PIPE)
+        # out, err = p.communicate()
+        # re.search('TexturePacker ')
+        pass
+    return is_valid
 
 def is_ignore_path(relpath, ignores):
     if relpath and ignores:
@@ -41,6 +53,44 @@ def is_ignore_path(relpath, ignores):
             if relpath.startswith(path):
                 return True
     return False
+
+def is_ignore_path2(relpath, ignores):
+    if relpath and ignores:
+        for path in ignores:
+            if relpath.endswith(path):
+                return True
+    return False
+
+def copytree(src, dst, ignores=None, symlinks=False):
+    names = os.listdir(src)
+    if not os.path.isdir(dst):
+        os.makedirs(dst)
+          
+    errors = []
+    for name in names:
+        srcname = os.path.join(src, name).replace("\\", "/")
+        if is_ignore_path2(srcname, ignores):
+            continue
+        dstname = os.path.join(dst, name).replace("\\", "/")
+        try:
+            if symlinks and os.path.islink(srcname):
+                linkto = os.readlink(srcname)
+                os.symlink(linkto, dstname)
+            elif os.path.isdir(srcname):
+                copytree(srcname, dstname, ignores, symlinks)
+            else:
+                if os.path.isdir(dstname):
+                    os.rmdir(dstname)
+                elif os.path.isfile(dstname):
+                    os.remove(dstname)
+                shutil.copy2(srcname, dstname)
+        except (IOError, os.error) as why:
+            errors.append((srcname, dstname, str(why)))
+        except OSError as err:
+            errors.extend(err.args[0])
+    
+    if errors:
+        raise Exception(errors)
 
 loglock = Lock()
 def log(s):
