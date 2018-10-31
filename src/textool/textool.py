@@ -19,8 +19,11 @@ import audiotranscode
 import subprocess
 import chardet
 import codecs
+import xlwings as xw
 
 from opencc import OpenCC
+
+from codefile import CodeFile
 from utils import *
 from convert import *
 from build import BuildTool
@@ -31,6 +34,9 @@ from plistlib import readPlist
 from collections import OrderedDict
 from multiprocessing import Pool, Lock
 from multiprocessing.dummy import Pool as ThreadPool
+
+reload(sys)
+sys.setdefaultencoding( "utf-8")
 
 usage = """
 %(prog)s pack pathOrDic -if imagefolder -mpk -o outpath -r -l
@@ -60,14 +66,138 @@ class TextureTool(object):
             return self.command_test3()
         elif self.command == 's2t':
             return self.command_test4()
-        elif self.command == 'findch':
+        elif self.command == 'findchs':
             return self.command_findch()
+        elif self.command == 'listchs':
+            return self.command_list_chs()
+        elif self.command == 'repchs':
+            return self.command_rep_chs()
+        elif self.command == 'translate':
+            return self.command_translate()
         else:
             print("unkown command,> ", self.command)
 
     def command_build(self):
         build = BuildTool()
         return build.execute()
+
+    def command_translate(self):
+        destfiles = [".lua", ".xml", ".json", '.cs', '.php', '.sql']
+        files = get_all_files(args.path, [".lua", ".json", '.cs', '.php', '.sql'], args.no_convert_list)
+        # print("files=\n" + '\r\n'.join(files))
+        return_data = []
+        if args.poolSize > 1 and len(files) > 0:
+            pool = ThreadPool(args.poolSize)
+            return_data = pool.map(self.translate_file, files)
+            pool.close()
+            pool.join()
+        else:
+            for file in files:
+                data = self.translate_file(file)
+                return_data.append(data)
+
+    def translate_file(self, path):
+        file = CodeFile(path)
+        ret = file.translate_cht()
+        pass
+
+
+    def command_list_chs(self):
+        files = get_all_files(args.path, [".cs", ".lua"], args.no_convert_list)
+        # print("files=\n" + '\r\n'.join(files))
+        return_data = []
+        cc = OpenCC('s2t')
+        if args.poolSize > 1 and len(files) > 0:
+            pool = ThreadPool(args.poolSize)
+            return_data = pool.map(self.codefile_list_chinese, files)
+            pool.close()
+            pool.join()
+        else:
+            for file in files:
+                data = self.codefile_list_chinese(file)
+                return_data.append(data)
+
+        print("translating language")
+        zhchsdict = {}
+        zhchtdict = {}
+        for datalist in return_data:
+            for data in datalist:
+                # print(data)
+                # print(data.encode('utf-8'))
+                md5str = hashlib.md5(data.encode('utf-8')).hexdigest()
+                zhchsdict[md5str] = data
+                zhchtdict[md5str] = cc.convert(data)
+
+        print("outputing translating language")
+        if args.output:
+            output_dir = args.output
+        elif os.path.isdir(args.path):
+            output_dir = args.path
+        else:
+            output_dir = os.path.dirname(args.path)
+
+        json_chs_content = "{\n"
+        for data in zhchsdict:
+            json_chs_content += "\t\"{0}\" : {1},\n".format(data, zhchsdict[data])
+        # json_chs_content += "}"
+        json_chs_content = json_chs_content[:-2] + "\n}"
+        # print(zhchsdict)
+        #         # json_chs = json.dumps(zhchsdict)
+        #         # print(json_chs)
+        codecs.open(os.path.join(output_dir, "lang_zh_cn.json"), 'w', encoding='utf-8').write(json_chs_content)
+        # json_cht = json.dumps(zhchtdict)
+        # print(json_cht)
+        json_cht_content = "{\n"
+        for data in zhchtdict:
+            json_cht_content += "\t\"{0}\" : {1},\n".format(data, zhchtdict[data])
+        json_cht_content = json_cht_content[:-2] + "\n}"
+        codecs.open(os.path.join(output_dir, "lang_zh_tw.json"), 'w', encoding='utf-8').write(json_cht_content)
+
+        print("generating lang.xlsx")
+        output_xlsx = os.path.join(output_dir, "lang.xlsx")
+        app = xw.App(False)
+        wb = app.books.add()
+        sheet1 = wb.sheets.add(u"中文")
+        sheet1.clear_contents()
+        count = 1
+        sheet1.range('A1').value = ["key", u"简体", u"繁体"]
+        count += 1
+        for data in zhchsdict:
+            sheet1.range("A{0}".format(count)).value = [data, zhchsdict[data].strip('"'), zhchtdict[data].strip('"')]
+            count += 1
+        sheet1.autofit()
+        wb.save(output_xlsx)
+        wb.close()
+        app.quit()
+        print("done")
+
+    def command_rep_chs(self):
+        files = get_all_files(args.path, [".cs", ".lua"], args.no_convert_list)
+        # print("files=\n" + '\r\n'.join(files))
+        return_data = []
+        cc = OpenCC('s2t')
+        if args.poolSize > 1 and len(files) > 0:
+            pool = ThreadPool(args.poolSize)
+            return_data = pool.map(self.codefile_rep_chinese, files)
+            pool.close()
+            pool.join()
+        else:
+            for file in files:
+                data = self.codefile_rep_chinese(file)
+                return_data.append(data)
+
+    def codefile_rep_chinese(self, path):
+        file = CodeFile(path)
+        chinese = file.list_chinese()
+        file.replace_tag()
+        # for s in chinese:
+        #     print(s)
+        return chinese
+
+    def codefile_list_chinese(self, path):
+        file = CodeFile(path)
+        ret = file.translate_cht()
+        return ret
 
     def command_findch(self):
         # re.match(r'"(.*[\u4e00-\u9fa5]+.*)"')
@@ -81,10 +211,11 @@ class TextureTool(object):
         if fileSuffix == '.lua':
             pattern_comment = r'--\[((=*)\[(.|\n)*?)\]\2\]|--[^\r\n]*'
             pattern_ignore = r'((print(f|Info|))|dump)\s*\(.*\)'
-            pattern_string = r'("(\\.|[^\\"])*")'
-            pattern_string2 = r"('(\\.|[^\\'])*')"
+            pattern_string = [r'("(\\.|[^\\"])*")', r"('(\\.|[^\\'])*')"]
         elif fileSuffix == '.cs':
             pattern_comment = r'//[^\r\n]*|/\*.*?\*/'
+            pattern_ignore = r'(Console.WriteLine|WriteLog)\s*\(.*\)'
+            pattern_string = [r'("(\\.|[^\\"])*")']
 
         f = open(args.path, 'rb')
         content = f.read()
@@ -94,25 +225,25 @@ class TextureTool(object):
             content = re.sub(pattern_comment, "", content)
         if pattern_ignore != None:
             content = re.sub(pattern_ignore, "", content)
-
         chsdict = {}
         chtdict = {}
         if pattern_string != None:
-            resultlist = re.findall(pattern_string, content)
-            for result in resultlist:
-                str = result[0]
-                print(str)
-                match = re.search(ur'[\u4e00-\u9fff]+', str)
-                if match:
-                    chsdict[str] = str
-        if pattern_string2 != None:
-            resultlist = re.findall(pattern_string2, content)
-            for result in resultlist:
-                str = result[0]
-                print(str)
-                match = re.search(ur'[\u4e00-\u9fff]+', str)
-                if match:
-                    chsdict[str] = str
+            if isinstance(pattern_string,basestring):
+                resultlist = re.findall(pattern_string, content)
+                for result in resultlist:
+                    str = result[0]
+                    match = re.search(ur'[\u4e00-\u9fff]+', str)
+                    if match:
+                        chsdict[str] = str
+            elif isinstance(pattern_string,list):
+                for pat in pattern_string:
+                    resultlist = re.findall(pat, content)
+                    for result in resultlist:
+                        str = result[0]
+                        match = re.search(ur'[\u4e00-\u9fff]+', str)
+                        if match:
+                            chsdict[str] = str
+
         # print(stringlist)
         for s in chsdict:
             print("findstring=", s)
