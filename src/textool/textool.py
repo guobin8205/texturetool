@@ -83,7 +83,7 @@ class TextureTool(object):
 
     def command_translate(self):
         destfiles = [".lua", ".xml", ".json", '.cs', '.php', '.sql']
-        files = get_all_files(args.path, [".lua", ".json", '.cs', '.php', '.sql'], args.no_convert_list)
+        files = get_all_files(args.path, None, args.no_convert_list)
         # print("files=\n" + '\r\n'.join(files))
         return_data = []
         if args.poolSize > 1 and len(files) > 0:
@@ -412,12 +412,12 @@ class TextureTool(object):
             return_data = []
             if args.poolSize > 1 and len(files) > 0:
                 pool = ThreadPool(args.poolSize)
-                return_data = pool.map(self.convert_from_texturepacker, files)
+                return_data = pool.map(self.convert_to_etc1, files)
                 pool.close()
                 pool.join()
             else:
                 for file in files:
-                    data = self.convert_from_texturepacker(file)
+                    data = self.convert_to_etc1(file)
                     return_data.append(data)
 
             if os.path.isdir(args.tempdir):

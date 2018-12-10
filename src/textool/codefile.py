@@ -37,7 +37,8 @@ class CodeFile(object):
             self.pattern_ignore = r'(print)\s*\(.*\)'
             self.pattern_string = [r'("(\\.|[^\\"])*")', r"('(\\.|[^\\'])*')"]
         else:
-            self.pattern_string = [r'("(\\.|[^\\"])*")']
+            # self.pattern_string = [r'("(\\.|[^\\"])*")']
+            pass
         pass
 
     def find_chinese(self):
@@ -66,10 +67,11 @@ class CodeFile(object):
                         match = re.search(ur'[\u4e00-\u9fff]+', str)
                         if match:
                             self.chinese_list.append(str)
-
+        else:
+            self.chinese_list.append(content)
         return self.chinese_list
 
-    def convert_chinese(self, stype='s2t'):
+    def convert_chinese(self, stype='s2twp'):
         cc = OpenCC(stype)
         for chinese in self.chinese_list:
             # if self.args.log:

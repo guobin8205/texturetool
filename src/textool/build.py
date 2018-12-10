@@ -120,12 +120,12 @@ class BuildTool(object):
 			
 			if args.poolSize > 1 and len(files) > 0:
 				pool = ThreadPool(args.poolSize)
-				compress_data = pool.map(self.convert_from_texturepacker, files)
+				compress_data = pool.map(self.convert_to_etc1, files)
 				pool.close()
 				pool.join()
 			else:
 				for file in files:
-					data = self.convert_from_texturepacker(file)
+					data = self.convert_to_etc1(file)
 					compress_data.append(data)
 
 			if os.path.isdir(args.tempdir):
