@@ -6,8 +6,8 @@ import re
 
 import chardet
 import codecs
-from utils import *
 from opencc import OpenCC
+from utils import *
 
 
 class CodeFile(object):
@@ -50,23 +50,23 @@ class CodeFile(object):
         content = content.decode(source_encoding, 'ignore')
         f.close()
         if self.pattern_string != None:
-            if isinstance(self.pattern_string, basestring):
+            if isinstance(self.pattern_string, str):
                 resultlist = re.findall(self.pattern_string, content, re.MULTILINE)
                 print(resultlist)
                 for result in resultlist:
-                    str = result[0]
-                    match = re.search(ur'[\u4e00-\u9fff]+', str)
+                    tmp_str = result[0]
+                    match = re.search(u'[\u4e00-\u9fff]+', tmp_str)
                     if match:
-                        self.chinese_list.append(str)
+                        self.chinese_list.append(tmp_str)
             elif isinstance(self.pattern_string, list):
                 for pat in self.pattern_string:
                     resultlist = re.findall(pat, content, re.DOTALL)
                     for result in resultlist:
-                        str = result[0]
+                        tmp_str = result[0]
                         # print(str)
-                        match = re.search(ur'[\u4e00-\u9fff]+', str)
+                        match = re.search(u'[\u4e00-\u9fff]+', tmp_str)
                         if match:
-                            self.chinese_list.append(str)
+                            self.chinese_list.append(tmp_str)
         else:
             self.chinese_list.append(content)
         return self.chinese_list
@@ -143,21 +143,21 @@ class CodeFile(object):
             content = re.sub(self.pattern_ignore, "", content)
             self.chinese_list = []
         if self.pattern_string != None:
-            if isinstance(self.pattern_string, basestring):
+            if isinstance(self.pattern_string, str):
                 resultlist = re.findall(self.pattern_string, content)
                 for result in resultlist:
-                    str = result[0]
-                    match = re.search(ur'[\u4e00-\u9fff]+', str)
+                    temp_str = result[0]
+                    match = re.search(u'[\u4e00-\u9fff]+', temp_str)
                     if match:
-                        self.chinese_list.append(str)
+                        self.chinese_list.append(temp_str)
             elif isinstance(self.pattern_string, list):
                 for pat in self.pattern_string:
                     resultlist = re.findall(pat, content)
                     for result in resultlist:
-                        str = result[0]
-                        match = re.search(ur'[\u4e00-\u9fff]+', str)
+                        temp_str = result[0]
+                        match = re.search(u'[\u4e00-\u9fff]+', temp_str)
                         if match:
-                            self.chinese_list.append(str)
+                            self.chinese_list.append(temp_str)
         return self.chinese_list
 
     def replace_tag(self):

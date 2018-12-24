@@ -31,7 +31,7 @@ def read_flist(flist_path):
 	elif os.path.isfile(flist_path) and flist_path.endswith("flist"):
 		flist_file = flist_path
 	else:
-		print("fail: not match flist > ", file_name)
+		print("fail: not match flist > ", flist_path)
 		return
 	
 	try:

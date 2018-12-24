@@ -11,6 +11,7 @@ from utils import *
 from convert import *
 from multiprocessing.dummy import Pool as ThreadPool
 
+
 class BuildTool(object):
 	def __init__(self):
 		global args

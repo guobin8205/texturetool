@@ -1,9 +1,10 @@
-#/usr/bin/python2
-#coding=utf-8
-#Python 3.6
+#!/usr/bin/env python
+# coding=utf-8
+# Python 3.6
 from __future__ import print_function
 
 import os
+import re
 import sys
 import argparse
 import dataparse
@@ -34,9 +35,6 @@ from plistlib import readPlist
 from collections import OrderedDict
 from multiprocessing import Pool, Lock
 from multiprocessing.dummy import Pool as ThreadPool
-
-reload(sys)
-sys.setdefaultencoding( "utf-8")
 
 usage = """
 %(prog)s pack pathOrDic -if imagefolder -mpk -o outpath -r -l
@@ -120,6 +118,7 @@ class TextureTool(object):
         print("translating language")
         zhchsdict = {}
         zhchtdict = {}
+        print(return_data)
         for datalist in return_data:
             for data in datalist:
                 # print(data)
@@ -196,7 +195,7 @@ class TextureTool(object):
 
     def codefile_list_chinese(self, path):
         file = CodeFile(path)
-        ret = file.translate_cht()
+        ret = file.list_chinese()
         return ret
 
     def command_findch(self):
@@ -206,7 +205,7 @@ class TextureTool(object):
         pattern_string = None
         pattern_string2 = None
         cc = OpenCC('s2t')
-        chinese_pattern = re.compile(ur'[\u4e00-\u9fa5]+')
+        chinese_pattern = re.compile(u'[\u4e00-\u9fa5]+')
         _, fileSuffix = os.path.splitext(args.path)
         if fileSuffix == '.lua':
             pattern_comment = r'--\[((=*)\[(.|\n)*?)\]\2\]|--[^\r\n]*'
@@ -232,7 +231,7 @@ class TextureTool(object):
                 resultlist = re.findall(pattern_string, content)
                 for result in resultlist:
                     str = result[0]
-                    match = re.search(ur'[\u4e00-\u9fff]+', str)
+                    match = re.search(u'[\u4e00-\u9fff]+', str)
                     if match:
                         chsdict[str] = str
             elif isinstance(pattern_string,list):
@@ -240,7 +239,7 @@ class TextureTool(object):
                     resultlist = re.findall(pat, content)
                     for result in resultlist:
                         str = result[0]
-                        match = re.search(ur'[\u4e00-\u9fff]+', str)
+                        match = re.search(u'[\u4e00-\u9fff]+', str)
                         if match:
                             chsdict[str] = str
 

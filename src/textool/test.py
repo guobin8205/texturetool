@@ -1,6 +1,6 @@
-#/usr/bin/python2
-#coding=utf-8
-#Python 2.7
+#!/usr/bin/env python
+# coding=utf-8
+# Python 3.6
 from opencc import OpenCC
 import re
 

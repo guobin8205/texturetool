@@ -1,7 +1,6 @@
 #!/usr/bin/env python  
 # coding=utf-8  
-# Python 3.6 
-
+# Python 3.6
 from parse import parse
 
 def parsedata(_data):
