@@ -3,38 +3,25 @@
 # Python 3.6
 from __future__ import print_function
 
-import os
-import re
-import sys
 import argparse
-import dataparse
-import flistparse
-import hashlib
-import json
-import shutil
-import zlib
-import tempfile
-import struct
-import plistlib
-import audiotranscode
-import subprocess
-import chardet
 import codecs
-import xlwings as xw
+import plistlib
+from collections import OrderedDict
+from multiprocessing.dummy import Pool as ThreadPool
+from plistlib import readPlist
 
+import chardet
+import xlwings as xw
+from PIL import Image
 from opencc import OpenCC
 
-from codefile import CodeFile
-from utils import *
-from convert import *
+import audiotranscode
+import dataparse
+import flistparse
 from build import BuildTool
+from codefile import CodeFile
+from convert import *
 from textureconvert import TextureConvert
-from PIL import Image
-from parse import parse
-from plistlib import readPlist
-from collections import OrderedDict
-from multiprocessing import Pool, Lock
-from multiprocessing.dummy import Pool as ThreadPool
 
 usage = """
 %(prog)s pack pathOrDic -if imagefolder -mpk -o outpath -r -l
@@ -127,14 +114,13 @@ class TextureTool(object):
                 zhchsdict[md5str] = data
                 zhchtdict[md5str] = cc.convert(data)
 
-        print("outputing translating language")
         if args.output:
             output_dir = args.output
         elif os.path.isdir(args.path):
             output_dir = args.path
         else:
             output_dir = os.path.dirname(args.path)
-
+        print("outputing translating language > ", output_dir)
         json_chs_content = "{\n"
         for data in zhchsdict:
             json_chs_content += "\t\"{0}\" : {1},\n".format(data, zhchsdict[data])
@@ -400,7 +386,7 @@ class TextureTool(object):
         return tempfiles
 
     def command_convert(self):
-        if args.image_option != "ETC1":
+        if args.image_option != "ETC1" and args.image_option != "PVRTC" and args.image_option != "ETC2":
             return
 
         start_time = time.time()
@@ -409,14 +395,15 @@ class TextureTool(object):
         if args.image_option == "ETC1":
             args.tempdir = tempfile.mkdtemp()
             return_data = []
+            converter = TextureConvert()
             if args.poolSize > 1 and len(files) > 0:
                 pool = ThreadPool(args.poolSize)
-                return_data = pool.map(self.convert_to_etc1, files)
+                return_data = pool.map(converter.convert_to_texture, files)
                 pool.close()
                 pool.join()
             else:
                 for file in files:
-                    data = self.convert_to_etc1(file)
+                    data = converter.convert_to_texture(file)
                     return_data.append(data)
 
             if os.path.isdir(args.tempdir):
@@ -683,7 +670,7 @@ class TextureTool(object):
                         break
                 pass
 
-            cmd = "TexturePacker {image_folder} --sheet {output_dir}{file_ext} --data {output_dir}.plist --format cocos2d --texture-format {texture_format} --opt {opt} --border-padding 0 --shape-padding 0 --max-size 2048 --enable-rotation".format( \
+            cmd = "TexturePacker {image_folder} --sheet {output_dir}{file_ext} --data {output_dir}.plist --format cocos2d --texture-format {texture_format} --opt {opt} --max-size 2048 --enable-rotation".format( \
                 image_folder = image_folder, output_dir = output_dir, file_ext = file_ext, texture_format = args.texture_format.lower(), opt = args.image_option)
             if args.no_trim_image:
                 for image in args.no_trim_image:
@@ -691,6 +678,12 @@ class TextureTool(object):
                         cmd = cmd + " --no-trim"
                         break
                 pass
+            if args.border_padding:
+                cmd = cmd + " --border-padding " + str(args.border_padding)
+
+            if args.shape_padding:
+                cmd = cmd + " --shape-padding " + str(args.shape_padding)
+
             if args.image_option == "RGBA8888":
                 cmd = cmd + " --size-constraints NPOT"
             else:
@@ -724,12 +717,19 @@ class TextureTool(object):
         opt = args.image_option
         if image_folder and os.path.isdir(image_folder):
             _,file_name = os.path.split(plist_file)
-            cmd = "TexturePacker {pvr_folder} --sheet {pvr_folder}.pvr.ccz --data {pvr_folder}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 2 --shape-padding 2 --max-size 2048 --enable-rotation".format(pvr_folder = image_folder, pvr_opt = opt)
+            cmd = "TexturePacker {pvr_folder} --sheet {pvr_folder}.pvr.ccz --data {pvr_folder}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --max-size 2048 --enable-rotation".format(pvr_folder = image_folder, pvr_opt = opt)
             if self.image_file and self.image_file.has_key(plist_file) \
             and get_image_ext(self.image_file[plist_file]) in pvr_file_ext:
                 pass
             else:
                 cmd = cmd + " --premultiply-alpha"
+           
+            if args.border_padding:
+                cmd = cmd + " --border-padding " + args.border_padding
+                
+            if args.shape_padding:
+                cmd = cmd + " --shape-padding " + args.shape_padding
+                       
             if args.no_trim_image:
                 for image in args.no_trim_image:
                     if image == "*" or image == file_name:
@@ -763,11 +763,16 @@ class TextureTool(object):
                     pvr_path = os.path.join(args.output, os.path.relpath(plist_file, args.path)).replace(image_ext, '')
                 else:
                     pvr_path,_ = os.path.splitext(os.path.join(plist_file))
-            cmd = "TexturePacker {png_path} --sheet {pvr_path}.pvr.ccz --data {pvr_path}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --border-padding 0 --shape-padding 0 --disable-rotation --allow-free-size --no-trim".format(png_path = png_path, pvr_path = pvr_path, pvr_opt = opt)
+            cmd = "TexturePacker {png_path} --sheet {pvr_path}.pvr.ccz --data {pvr_path}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --disable-rotation --allow-free-size --no-trim".format(png_path = png_path, pvr_path = pvr_path, pvr_opt = opt)
             if plist_file.endswith('.pvr.ccz'):
                 pass
             else:
                 cmd = cmd + " --premultiply-alpha"
+            if args.border_padding:
+                cmd = cmd + " --border-padding " + args.border_padding
+                
+            if args.shape_padding:
+                cmd = cmd + " --shape-padding " + args.shape_padding
             if opt == "RGBA8888":
                 cmd = cmd + " --size-constraints NPOT"
             else:
@@ -880,6 +885,7 @@ def main():
 
     group_option = parser.add_argument_group('For option')
     group_option.add_argument("-p", "--platform", type=str, metavar="platform", default='android')
+    group_option.add_argument("-ct", "--convert_tool", type=str, metavar="convert_tool", default='PVRTexToolCLI')
     group_option.add_argument("-tf", "--texture_format", type=str, metavar="texture_format", default='png')
     group_option.add_argument("-opt", "--image_option", type=str, metavar="image_opt", default='RGBA8888')
     group_option.add_argument("-mpk", "--multipack", action="store_true", default=False)
@@ -895,6 +901,8 @@ def main():
     group_option.add_argument("-av", "--app_version", type=str, metavar="app_version", default='1.0.0', help="app list version when build")
     group_option.add_argument("-rv", "--res_version", type=int, metavar="res_version", default=0, help="res list version when build")
     group_option.add_argument("-de", "--debug", type=int, metavar="debug", default=0, help="res list debug when build")
+    group_option.add_argument("-bp", "--border-padding",  type=int, default=0, metavar="border_padding", help="border-padding")
+    group_option.add_argument("-sp", "--shape-padding",  type=int, default=0,  metavar="shape_padding", help="shape-padding")
 
     param = parser.parse_args()
     g_init(param)
