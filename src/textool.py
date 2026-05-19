@@ -8,7 +8,6 @@ import codecs
 import plistlib
 from collections import OrderedDict
 from multiprocessing.dummy import Pool as ThreadPool
-from plistlib import readPlist
 
 import chardet
 import xlwings as xw
@@ -213,7 +212,7 @@ class TextureTool(object):
         chsdict = {}
         chtdict = {}
         if pattern_string != None:
-            if isinstance(pattern_string,basestring):
+            if isinstance(pattern_string, str):
                 resultlist = re.findall(pattern_string, content)
                 for result in resultlist:
                     str = result[0]
@@ -312,13 +311,7 @@ class TextureTool(object):
                 pass
             pass
         # print(resourse)
-        plist_string = plistlib.writePlist(resourse)
-        # print(plist_string)
-        plist_file = os.path.join(args.output, "res.plist")
-        print(plist_file)
-        file = open(plist_file, 'wb')
-        file.write(plist_string)
-        file.close()
+        plistlib.dump(resourse, open(plist_file, 'wb'))
         pass
 
     def command_pack(self):
@@ -501,8 +494,8 @@ class TextureTool(object):
 
         code = self.res_flist_data['fileInfoList'][plist_file]['code']
         if self.res_in_flist_data and self.res_in_flist_data['fileInfoList'] \
-            and self.res_in_flist_data['fileInfoList'].has_key(plist_file)	\
-            and self.res_in_flist_data['fileInfoList'][plist_file].has_key('code'):
+            and plist_file in self.res_in_flist_data['fileInfoList']\
+            and 'code' in self.res_in_flist_data['fileInfoList'][plist_file]:
             compairCode = self.res_in_flist_data['fileInfoList'][plist_file]['code']
             if compairCode != code:
                 return False
@@ -578,7 +571,7 @@ class TextureTool(object):
         # file_md5 = get_file_md5(full_path)
 
         try:
-            data = readPlist(full_path)
+            data = plistlib.load(open(full_path, 'rb'))
         except Exception as _:
             print("fail: read plist file failed >", full_path)
             return False
@@ -684,6 +677,9 @@ class TextureTool(object):
             if args.shape_padding:
                 cmd = cmd + " --shape-padding " + str(args.shape_padding)
 
+            if args.inner_padding:
+                cmd = cmd + " --inner-padding " + str(args.inner_padding)
+
             if args.image_option == "RGBA8888":
                 cmd = cmd + " --size-constraints NPOT"
             else:
@@ -718,18 +714,20 @@ class TextureTool(object):
         if image_folder and os.path.isdir(image_folder):
             _,file_name = os.path.split(plist_file)
             cmd = "TexturePacker {pvr_folder} --sheet {pvr_folder}.pvr.ccz --data {pvr_folder}.plist --format cocos2d --texture-format pvr2ccz --opt {pvr_opt} --max-size 2048 --enable-rotation".format(pvr_folder = image_folder, pvr_opt = opt)
-            if self.image_file and self.image_file.has_key(plist_file) \
-            and get_image_ext(self.image_file[plist_file]) in pvr_file_ext:
+            if self.image_file and plist_file in self.image_file and get_image_ext(self.image_file[plist_file]) in pvr_file_ext:
                 pass
             else:
                 cmd = cmd + " --premultiply-alpha"
            
             if args.border_padding:
                 cmd = cmd + " --border-padding " + args.border_padding
-                
+
             if args.shape_padding:
                 cmd = cmd + " --shape-padding " + args.shape_padding
-                       
+
+            if args.inner_padding:
+                cmd = cmd + " --inner-padding " + args.inner_padding
+
             if args.no_trim_image:
                 for image in args.no_trim_image:
                     if image == "*" or image == file_name:
@@ -770,9 +768,12 @@ class TextureTool(object):
                 cmd = cmd + " --premultiply-alpha"
             if args.border_padding:
                 cmd = cmd + " --border-padding " + args.border_padding
-                
+
             if args.shape_padding:
                 cmd = cmd + " --shape-padding " + args.shape_padding
+
+            if args.inner_padding:
+                cmd = cmd + " --inner-padding " + args.inner_padding
             if opt == "RGBA8888":
                 cmd = cmd + " --size-constraints NPOT"
             else:
@@ -798,12 +799,12 @@ class TextureTool(object):
                 full_path = os.path.join(self.res_build_path, plist_file)
                 pvr_fullpath = full_path.replace('.plist', '.pvr.ccz')
                 pvr_path = plist_file.replace('.plist', '.pvr.ccz')
-                if self.image_file and self.image_file.has_key(plist_file) and self.res_flist_data['fileInfoList'].has_key(self.image_file[plist_file]):
+                if self.image_file and plist_file in self.image_file and self.image_file[plist_file] in self.res_flist_data['fileInfoList']:
                     del self.res_flist_data['fileInfoList'][self.image_file[plist_file]]
                 else:
-                    if self.res_flist_data['fileInfoList'].has_key(plist_file.replace('.plist', '.pvr.ccz')):
+                    if plist_file.replace('.plist', '.pvr.ccz') in self.res_flist_data['fileInfoList']:
                         del self.res_flist_data['fileInfoList'][plist_file.replace('.plist', '.pvr.ccz')]
-                    if self.res_flist_data['fileInfoList'].has_key(plist_file.replace('.plist', '.png')):
+                    if plist_file.replace('.plist', '.png') in self.res_flist_data['fileInfoList']:
                         del self.res_flist_data['fileInfoList'][plist_file.replace('.plist', '.png')]
 
                 self.res_flist_data['fileInfoList'][plist_file]['code'] = get_file_md5(full_path)
@@ -813,7 +814,7 @@ class TextureTool(object):
                     'size' : os.path.getsize(pvr_fullpath)
                 }
             elif plist_file.endswith('.png') or plist_file.endswith('.pvr.ccz'):
-                if plist_file and self.res_flist_data['fileInfoList'].has_key(plist_file):
+                if plist_file and plist_file in self.res_flist_data['fileInfoList']:
                     del self.res_flist_data['fileInfoList'][plist_file]
                 pvr_path = plist_file.replace('.png', '.pvr.ccz')
                 pvr_fullpath = os.path.join(self.res_build_path, pvr_path)
@@ -903,6 +904,7 @@ def main():
     group_option.add_argument("-de", "--debug", type=int, metavar="debug", default=0, help="res list debug when build")
     group_option.add_argument("-bp", "--border-padding",  type=int, default=0, metavar="border_padding", help="border-padding")
     group_option.add_argument("-sp", "--shape-padding",  type=int, default=0,  metavar="shape_padding", help="shape-padding")
+    group_option.add_argument("-ip", "--inner-padding",  type=int, default=0,  metavar="inner_padding", help="inner-padding")
 
     param = parser.parse_args()
     g_init(param)

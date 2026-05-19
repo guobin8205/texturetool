@@ -253,10 +253,7 @@ class BuildTool(object):
         resourse = {}
         resourse["metadata"] = {'version': 1}
         resourse["filenames"] = d
-        plist_string = plistlib.writePlist(resourse, plist_file)
-        # file = open(plist_file, 'wb')
-        # file.write(plist_string)
-        # file.close()
+        plistlib.dump(resourse, open(plist_file, 'wb'))
         print(u"res.plist %d files done!" % len(d))
         pass
 
